@@ -8,19 +8,23 @@ One portable Agent Skill for harness engineering, verification loops, and task d
 
 **Install.** Register the GitHub repository as a marketplace and install the plugin in Codex or Claude Code. The host keeps a local copy of the skill. Other Agent Skills hosts can load the same skill directory directly.
 
-**Run.** When you submit a prompt, the host uses the names and descriptions in its skill catalog to select a skill and loads the selected `SKILL.md` and relevant references. If configured, the `UserPromptSubmit` hook searches a local English keyword index and suggests up to three skill names. The host confirms the candidates and decides which skill to load.
+**Run.** The index is a local file (`skill-index.json`) with skill names, short descriptions, and file paths. When configured, the `UserPromptSubmit` hook searches it first and sends up to three candidate names to the host. The host confirms availability and reads the selected `SKILL.md` and relevant references. A plugin-only installation uses the host's own skill catalog.
+
+**Language.** The bundled skill descriptions and operating instructions are written in English. Users can write prompts in their preferred language. The local search maps common Korean engineering terms to English keywords. Measure actual token use to quantify any savings.
+
+**Solid arrows** show the main workflow. **Dotted arrows** show the extra lookup that runs when the prompt hook is configured. A review finding that requires a fix goes back to verification.
 
 ```mermaid
 flowchart TB
-    Prompt["User prompt"] --> Catalog["Host skill catalog"]
-    Prompt -. optional .-> Index["UserPromptSubmit<br/>Local English keyword index"]
+    Prompt["User prompt"] --> Catalog["Check available skills"]
+    Prompt -. runs first if enabled .-> Index["Search local<br/>skill index"]
     Index -. up to 3 candidates .-> Catalog
-    Catalog --> Skill["Load skill"]
+    Catalog --> Skill["Read selected skill"]
     Skill --> Harness["Harness<br/>Set pass criteria"]
     Harness --> Graph["Task graph<br/>Order the work"]
     Graph --> Loop["Verification loop<br/>Check, fix, repeat"]
     Loop --> Review["Review as needed"]
-    Review -. findings .-> Loop
+    Review -->|fix required| Loop
     Review --> Report["Report evidence"]
 ```
 
