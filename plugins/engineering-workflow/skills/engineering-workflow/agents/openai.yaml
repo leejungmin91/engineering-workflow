@@ -1,4 +1,4 @@
 interface:
-  display_name: "엔지니어링 워크플로"
-  short_description: "작업 순서, 완료 기준, 재검사와 이어하기를 관리해요"
-  default_prompt: "$engineering-workflow로 이 작업의 순서와 완료 기준을 정하고, 검증까지 진행해 줘."
+  display_name: "Engineering Workflow"
+  short_description: "Plan dependencies and verify engineering work"
+  default_prompt: "Use $engineering-workflow:engineering-workflow to plan the change and verify the result."

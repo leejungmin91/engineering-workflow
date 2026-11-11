@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"/absolute/path/to/skill_index.py\" hook \"/absolute/path/to/skill-index.json\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

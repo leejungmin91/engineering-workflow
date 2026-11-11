@@ -9,3 +9,9 @@
 이 예제는 한 줄에 쓴 첫 직접 `git` 명령의 리터럴 옵션을 검사한다. `git -C <경로>`도 지원한다. 줄 연속, 셸 변수나 별칭, 복잡한 인용, 옵션을 취소하는 부정 플래그가 포함된 명령은 호스트 권한과 Git 보호 규칙에서 다룬다. 읽기 명령과 드라이런은 통과한다. 허용·거부 테스트는 저장소 루트에서 `python3 -m unittest discover -s integrations/hooks`로 실행한다. 테스트는 JSON을 훅에 전달하며 Git 명령을 실행하지 않는다.
 
 [Codex 훅 문서](https://learn.chatgpt.com/docs/hooks) · [Claude Code 훅 문서](https://code.claude.com/docs/en/hooks)
+
+## Optional skill discovery hook
+
+Build the index using the [skill discovery guide](../../plugins/engineering-workflow/skills/engineering-workflow/references/skill-index.md). Set the script and index paths in `skill-index.example.json`, then merge its `UserPromptSubmit` event into the host's hook settings. Review and trust the hook in Codex if prompted. If the host's built-in catalog already finds the right skills, use that catalog.
+
+The hook reads the prompt locally and returns only up to three candidate names. It never loads a skill or writes a prompt to disk. Add it where the candidate hints are worth the extra context.

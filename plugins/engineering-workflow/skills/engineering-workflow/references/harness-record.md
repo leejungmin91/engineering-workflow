@@ -1,10 +1,10 @@
-# 완료 기록 검사기
+# Completion record
 
-검증 명령은 프로젝트 도구로 먼저 실행한다. 스킬에 포함된 검사기는 그 결과를 담은 JSON을 읽고 필수 검사에 근거가 빠졌는지, 작업본이 다른지, 선행 관계가 유효한지 확인한다. 사용자가 보는 동작이 맞는지와 실제 검사가 실행됐는지는 직접 확인한다.
+Run project checks first. The checker validates recorded evidence, the supplied work snapshot, and task dependencies. It does not run tests or verify the claims inside a record.
 
-1. 실행 전에 정한 필수 검사만 기록한다. 검사에 실패하거나 실행할 수 없다고 목록에서 빼지 않는다. 선택 검사는 별도로 보고한다.
-2. 검사의 입력을 식별할 수 있는 값(예: 깨끗한 커밋 ID, 또는 커밋 ID와 변경 파일 스냅샷 ID)을 정한다. 변경 후에는 영향을 받는 검사를 다시 실행한다. 검사기는 한 기록에 든 모든 필수 검사에 같은 작업본 ID를 요구한다. 영향을 받지 않은 과거 근거는 인계 메모에 유지한다. 프로젝트 규칙상 검사별로 작업본을 달리할 수 있다면 각 검사의 실제 입력을 수동 대조한다.
-3. 아래 모양으로 작성한다. 검사 ID는 해당 단계에서, 단계 ID는 전체에서 유일해야 한다. ID는 최대 64자다. 영문 또는 숫자로 시작하고, 이후에는 점, 밑줄, 하이픈도 쓸 수 있다. `after`가 없으면 빈 배열로 쓴다. `status`는 `passed`, `failed`, `blocked`, `unverified` 중 하나다. `passed`에는 검사 당시 작업본 ID와 실제 결과를 확인할 수 있는 짧은 근거가 필요하다. 환경 때문에 막혔으면 이유를 인계 메모에 적는다.
+1. Record every required check, including checks that failed or could not run.
+2. Identify the work snapshot from the actual inputs, such as a clean commit or a commit plus a working-tree snapshot. The checker requires the same snapshot for every passing check in the file. Keep unaffected older evidence in a handoff or compare it manually when the project permits independent snapshots.
+3. Use unique task IDs and unique check IDs within each task. IDs start with an ASCII letter or digit and may contain letters, digits, periods, underscores, and hyphens. Maximum length is 64. Use an empty `after` list for a task without prerequisites. Use `passed`, `failed`, `blocked`, or `unverified`. A passing check needs the snapshot and a short evidence reference.
 
 ```json
 {
@@ -13,7 +13,7 @@
       "id": "parser",
       "after": [],
       "checks": [
-        {"id": "regression", "status": "passed", "snapshot": "review-2", "evidence": "대상 회귀 검사: 4건 통과, 종료 코드 0"}
+        {"id": "regression", "status": "passed", "snapshot": "review-2", "evidence": "Four targeted checks passed, exit code 0"}
       ]
     },
     {
@@ -27,16 +27,16 @@
 }
 ```
 
-스킬 폴더 기준으로 Python 3.9 이상에서 다음을 실행한다. JSON을 현재 채팅에서만 사용하려면 파일 경로 대신 `-`를 넘기고 표준 입력으로 보낸다. `--snapshot`에는 JSON을 그대로 복사하지 말고 실제로 검증 중인 작업본의 ID를 넣는다.
+Run from the skill directory using Python 3.9 or newer. Pass `-` to read JSON from standard input. Supply the current work snapshot independently of the record.
 
-```bash
+```sh
 python3 scripts/check_record.py /absolute/path/to/record.json --snapshot review-2
 ```
 
-| 종료 코드 | 의미 |
+| Exit code | Meaning |
 | --- | --- |
-| 0 | 기록된 모든 필수 검사에 현재 작업본의 통과 근거가 있음 |
-| 1 | 실패, 막힘, 미검증, 누락된 근거 또는 낡은 근거가 있음 |
-| 2 | JSON 형식이나 의존성이 잘못됨 |
+| 0 | All recorded required checks pass for the supplied snapshot |
+| 1 | A check failed, is blocked or unverified, or has missing or stale evidence |
+| 2 | Invalid input or dependency graph |
 
-위 예시의 결과는 1이며 `ui/error-flow: unverified`를 표시한다. 검사기는 외부 프로그램을 실행하거나 저장소 파일을 쓰지 않는다. 근거의 본문은 출력하지 않는다. 승인, 커밋, 푸시, 배포를 실행하지 않는다.
+The example exits 1 and reports `ui/error-flow: unverified`. The checker does not run recorded commands, print evidence text, or write repository files.

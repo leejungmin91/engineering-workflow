@@ -2,12 +2,30 @@
 
 One portable Agent Skill for harness engineering, verification loops, and task dependency graphs. Use it from a CLI or an app and add Slack or Discord context when the task needs it.
 
+## Architecture
+
+```mermaid
+flowchart TB
+    Prompt["Prompt · Codex / Claude Code / other hosts"] --> Select["Select a skill from the host catalog"]
+    Prompt -. optional .-> Index["UserPromptSubmit<br/>Local English keyword index"]
+    Index -. up to three candidate names .-> Select
+    Select --> Core["Engineering Workflow<br/>Harness → Task graph → Verification loop"]
+    Optional["Slack / Discord MCP · Git PreToolUse"] -. optional .-> Core
+    Core --> Report["Independent review when needed<br/>Evidence and final report"]
+```
+
+When the host lets you choose a model, use the smallest capable one for each role. Use a lightweight model for routine edits, a standard model for integration or debugging, and a more capable model for architecture or high-risk reviews. [Superpowers](https://github.com/obra/superpowers)
+
+See the [skill discovery and index guide](plugins/engineering-workflow/skills/engineering-workflow/references/skill-index.md) for native lookup and the optional prompt hook.
+
+The optional completion checker compares recorded checks with the current work snapshot. See the [full workflow and report handoff](docs/workflow-flow.md).
+
 ## Install
 
 ### Codex CLI and desktop app
 
 ```sh
-codex plugin marketplace add leejungmin91/codex-engineering-workflow --ref v0.3.0
+codex plugin marketplace add leejungmin91/codex-engineering-workflow --ref v0.4.0
 codex plugin add engineering-workflow@engineering-workflow
 ```
 
@@ -53,6 +71,8 @@ python plugins/engineering-workflow/skills/engineering-workflow/scripts/check_re
 The example reports a failed regression, stale lint evidence, and a pending UI check. See the [record format](plugins/engineering-workflow/skills/engineering-workflow/references/harness-record.md).
 
 ## 한국어
+
+위 구조도는 **스킬 검색 → 합격 기준 → 작업 순서 → 구현·재검사 → 교차검토 → 보고**를 보여 줍니다. 검토에서 수정할 점을 찾으면 영향을 받은 검사로 돌아가고, 막히면 확인한 근거와 남은 문제를 보고합니다.
 
 위 설치 절차 중 사용하는 CLI나 앱을 선택한 뒤 새 채팅에서 이렇게 요청하세요.
 

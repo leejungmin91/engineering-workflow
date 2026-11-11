@@ -1,25 +1,16 @@
-# 교차검토와 인계
+# Independent review and handoff
 
-구현한 세션과 검토하는 세션을 분리한다. 검토자가 쓸 수 있는 도구, 모델, 저장소 접근 범위부터 확인한다.
+Use a fresh, read-only reviewer. Confirm tool and model availability and repository access.
 
-| 우선순위 | 구현자 | 검토자 |
+| Implementer | Preferred reviewer | Fallback |
 | --- | --- | --- |
-| 1 | Codex | 새 Claude Code 세션에서 읽기 전용 검토 |
-| 1 | Claude Code | OpenAI 공식 플러그인의 `/codex:review`로 일반 diff 검토. 수용 기준이나 집중 영역을 전달해야 하면 `/codex:adversarial-review` 또는 검증된 읽기 전용 브리지 사용 |
-| 2 | Codex | 새 Codex 서브에이전트나 별도 채팅에서 Sol 선택 |
-| 2 | Claude Code | 새 Claude Code 서브에이전트나 별도 세션에서 Opus 선택 |
+| Codex | A separate Claude Code session | A fresh Codex subagent or chat using Sol |
+| Claude Code | The official OpenAI Codex plugin or a verified read-only bridge | A fresh Claude Code subagent or session using Opus |
 
-다른 도구에 직접 접근할 수 없으면 같은 도구의 새 세션으로 넘어간다. 앱에서도 새 채팅이나 지원되는 서브에이전트에 같은 인계 내용을 준다. 모델 접근이나 새 세션 기능이 없으면 자기 점검은 할 수 있지만 독립 검토는 미검증으로 기록한다. MCP는 실제로 사용 가능한 연결이 있을 때만 쓰며, 사용자에게 허용된 코드와 근거만 전달한다.
+Use `/codex:review` for a general diff review. When acceptance criteria or focus areas must be passed to Codex, use `/codex:adversarial-review` or a read-only bridge that accepts the handoff. Use the same packet in a fresh app chat or subagent when supported. Record the route used. If no independent session is available, record independent review as unverified and continue the checks you can run. Use MCP only when a supported connection already exists and the shared data is within the user's scope.
 
-OpenAI는 과거 `codex mcp-server` 명령을 제거했다. Claude Code에서 Codex를 호출할 때는 공식 플러그인의 읽기 전용 검토나 이미 구성한 브리지를 사용한다. 일반 `/codex:review`에는 맞춤 검토 기준을 전달할 수 없으므로, 그 결과는 일반 diff 검토로 기록한다. 수용 기준 검토가 필수라면 맞춤 지시를 받는 경로를 사용한다. 기본 흐름에서는 검토 한 번을 요청하고 결과를 받은 후 수정 여부를 판단한다. [Codex 플러그인](https://github.com/openai/codex-plugin-cc) · [구형 Codex MCP 제거 안내](https://learn.chatgpt.com/docs/mcp-server) · [Claude 서브에이전트](https://code.claude.com/docs/en/sub-agents) · [Codex 서브에이전트](https://learn.chatgpt.com/docs/agent-configuration/subagents)
+[Official Codex plugin](https://github.com/openai/codex-plugin-cc) · [Codex subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents) · [Claude Code subagents](https://code.claude.com/docs/en/sub-agents)
 
-## 검토자에게 넘길 내용
+Provide the goal and acceptance criteria, behaviors to preserve, base and work snapshot, diff location, checks run, and unverified areas. Give the reviewer the evidence without the implementer's verdict. Ask for severity, file and line, trigger, user impact, and a check for each finding.
 
-- 목표와 수용 기준, 바뀌면 안 되는 동작
-- 기준 브랜치나 커밋, 검토할 현재 작업본과 diff 위치
-- 실행한 검사와 결과, 확인하지 못한 범위
-- 요청할 출력 형식. 각 지적에 심각도, 파일과 줄, 발생 조건, 사용자가 겪을 영향, 권장 검사를 포함한다.
-
-검토자에게 구현자의 결론을 미리 주지 않는다. 검토자는 diff를 수정하거나 커밋하지 않는다. 문제가 없으면 검토한 범위와 남은 위험을 짧게 남긴다.
-
-구현자는 각 지적을 확인해 `반영`, `근거와 함께 미반영`, `보류` 중 하나로 기록한다. 반영한 수정에 영향을 받는 검사를 다시 실행한다. 검토 뒤 중요한 변경이 있으면 그 부분을 다시 검토한다. 필수 검토를 완료 검사에 넣었다면 현재 작업본에 대한 검토와 처리가 끝났을 때만 `passed`로 기록한다.
+The reviewer does not edit or commit. The implementer records each finding as addressed, declined with evidence, or deferred. Rerun checks affected by fixes and request a focused re-review when the final change materially alters what was reviewed. Mark required review passed only after findings are handled for the current snapshot.
