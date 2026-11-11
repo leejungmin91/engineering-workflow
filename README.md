@@ -7,7 +7,7 @@ One portable Agent Skill for harness engineering, verification loops, and task d
 ### Codex CLI and desktop app
 
 ```sh
-codex plugin marketplace add leejungmin91/codex-engineering-workflow --ref v0.2.0
+codex plugin marketplace add leejungmin91/codex-engineering-workflow --ref v0.3.0
 codex plugin add engineering-workflow@engineering-workflow
 ```
 
@@ -18,15 +18,17 @@ In Codex desktop, restart after adding the marketplace and install **Engineering
 ### Claude Code
 
 ```sh
-claude plugin marketplace add leejungmin91/codex-engineering-workflow
+claude plugin marketplace add https://github.com/leejungmin91/codex-engineering-workflow.git
 claude plugin install engineering-workflow@engineering-workflow
 ```
 
-In a new session, run `/engineering-workflow:engineering-workflow`. On Claude Code 2.1.275 or later, the in-session command below also installs it.
+In a new session, run `/engineering-workflow:engineering-workflow`. On Claude Code 2.1.275 or later, the in-session command below opens the installation screen.
 
 ```text
 /plugin install engineering-workflow --marketplace leejungmin91/codex-engineering-workflow
 ```
+
+To update an existing installation, run `claude plugin marketplace update engineering-workflow` and then `claude plugin update engineering-workflow@engineering-workflow`. Restart Claude Code to apply the update.
 
 [Claude Code marketplace docs](https://code.claude.com/docs/en/plugin-marketplaces)
 
@@ -57,6 +59,7 @@ The example reports a failed regression, stale lint evidence, and a pending UI c
 > Engineering Workflow로 작업 순서와 합격 기준을 정하고, 검증한 내용과 남은 문제를 다이어그램과 함께 보고해 줘.
 
 - [Slack·Discord MCP 설치 안내](docs/mcp-setup.md)
-- [구현·검증 보고서와 다이어그램](docs/implementation-report.md)
+- [전체 실행 흐름·교차검토·보고서 다이어그램](docs/workflow-flow.md)
+- [다중 도구 배포 보고서](docs/implementation-report.md)
 - [참고한 스킬 10개](plugins/engineering-workflow/skills/engineering-workflow/references/source-skills.md)
 - [선택형 훅 도입안](plugins/engineering-workflow/skills/engineering-workflow/references/hook-recommendations.md)

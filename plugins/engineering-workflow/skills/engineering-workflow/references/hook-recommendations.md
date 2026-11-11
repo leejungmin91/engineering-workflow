@@ -1,13 +1,11 @@
-# Codex 훅 도입안
+# 선택형 훅
 
-2026-11-11 기준 제안. 이 스킬은 훅을 등록하거나 실행하지 않는다. [OpenAI Codex 훅 문서](https://learn.chatgpt.com/docs/hooks)를 기준으로 이벤트를 골랐다.
+플러그인 설치 직후 활성화되는 훅은 0개다. [PreToolUse 예시](https://github.com/leejungmin91/codex-engineering-workflow/tree/main/integrations/hooks)는 프로젝트에서 선택해 등록한다. Codex와 Claude Code가 도구 실행 전에 전달하는 `Bash` 명령을 확인하고, 첫 직접 Git 명령이 `git reset --hard`, `git clean -fdx`, `git push --force` 또는 `git push -f`에 해당하면 종료 코드 2로 막는다. 정상 명령과 드라이런은 통과한다.
 
-| 순서 | 훅 | 제한할 것 | 처음 적용할 범위 |
-| ---: | --- | --- | --- |
-| 1 | `PreToolUse` | Codex가 직접 실행하려는 명백한 파괴 명령 | `Bash`에서 `git reset --hard`, `git clean -fdx`, 명시적 강제 푸시처럼 되돌리기 어려운 형태만 탐지한다. 처음에는 경고를 내고, 정상 명령과 차단 사례를 점검한 뒤 `permissionDecision: deny`로 좁게 전환한다. 일반 테스트·빌드 정리는 계속 허용한다. |
-| 2 | `PostToolUse` | 검사 실패가 묻히는 것 | 등록된 검증 명령의 결과에서 종료 상태와 작업본 ID만 기록한다. 확인할 수 없는 값은 미확인으로 둔다. 명령 전체나 원본 로그를 보관하지 않는다. 이미 실행된 변경을 되돌릴 수 없는 훅이다. |
-| 3 | `Stop` | 완료 기록 없이 끝나는 것 | 명시적으로 하네스를 시작한 작업만 대상으로 한다. 검사기가 근거 부족을 반환하면 최신 검사 또는 남은 문제 보고를 한 번 요청한다. `stop_hook_active`가 이미 참이거나 사용자가 중단했거나 권한·환경을 기다리는 경우에는 이어서 실행하지 않는다. |
+| 이벤트 | 현재 사용 |
+| --- | --- |
+| `PreToolUse` | 명시적으로 등록한 환경에서만 Git 명령을 제한 |
+| `PostToolUse` | 검증은 실제 명령과 완료 기록으로 관리 |
+| `Stop` | 검토 루프는 스킬의 작업 단계에서 관리 |
 
-특정 프로젝트의 배포, 보호 파일, 운영 키 제한은 해당 프로젝트나 CI에서 맡는 편이 정확하다. 실제 비밀 파일과 배포 권한은 샌드박스, OS 권한, 서버 권한 및 보호 브랜치로 관리한다. `PreToolUse`가 검사할 수 있는 도구 경로는 제한되며 오류가 나면 실행이 계속되는 경우가 있다. [OpenAI 보안 예시](https://learn.chatgpt.com/docs/enterprise/security-cookbook)와 [Codex 명령 규칙](https://learn.chatgpt.com/docs/agent-configuration/rules)을 참고한다.
-
-도입할 때는 CLI의 `/hooks`에서 해당 훅 정의를 검토하고 신뢰한 뒤, 무해한 예제와 차단 예제, 작업 중단 예제로 동작을 확인한다. 처음에는 1번만 켜고 정상 작업을 막지 않는지 확인한 후 나머지를 검토한다.
+선택형 훅은 한 줄의 첫 직접 호출과 리터럴 옵션만 대상으로 삼는다. 줄 연속, 복잡한 인용, 셸 확장, 부정 플래그는 별도 보호 규칙에서 다룬다. 나중에 연결한 명령, 별칭, 래퍼, 다른 도구 경로는 샌드박스·Git 권한·보호 브랜치 같은 독립 제한을 사용한다. 명령 훅으로 보고서나 검토를 자동 실행하면 비용과 실행 시간이 늘 수 있어, 교차검토는 필요한 작업에서 한 번 요청하고 결과를 반영한다. [Codex 훅](https://learn.chatgpt.com/docs/hooks) · [Claude Code 훅](https://code.claude.com/docs/en/hooks)
