@@ -1,0 +1,17 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "engineering-workflow",
+  "version": "0.1.0",
+  "description": "Plan dependencies, run bounded verification loops, and check completion evidence in Codex.",
+  "repository": "https://github.com/leejungmin91/codex-engineering-workflow",
+  "license": "MIT",
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Engineering Workflow",
+        "shortDescription": "Plan dependencies and verify engineering work in Codex.",
+        "category": "Developer Tools"
+      }
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "tasks": [
+    {
+      "id": "parser",
+      "after": [],
+      "checks": [
+        {"id": "regression", "status": "failed"},
+        {"id": "lint", "status": "passed", "snapshot": "previous", "evidence": "Linter exited 0"}
+      ]
+    },
+    {
+      "id": "ui",
+      "after": ["parser"],
+      "checks": [
+        {"id": "error-flow", "status": "unverified"}
+      ]
+    }
+  ]
+}
