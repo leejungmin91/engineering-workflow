@@ -25,7 +25,7 @@ The optional completion checker compares recorded checks with the current work s
 ### Codex CLI and desktop app
 
 ```sh
-codex plugin marketplace add leejungmin91/codex-engineering-workflow --ref v0.4.0
+codex plugin marketplace add leejungmin91/engineering-workflow --ref v0.4.0
 codex plugin add engineering-workflow@engineering-workflow
 ```
 
@@ -36,14 +36,14 @@ In Codex desktop, restart after adding the marketplace and install **Engineering
 ### Claude Code
 
 ```sh
-claude plugin marketplace add https://github.com/leejungmin91/codex-engineering-workflow.git
+claude plugin marketplace add https://github.com/leejungmin91/engineering-workflow.git
 claude plugin install engineering-workflow@engineering-workflow
 ```
 
 In a new session, run `/engineering-workflow:engineering-workflow`. On Claude Code 2.1.275 or later, the in-session command below opens the installation screen.
 
 ```text
-/plugin install engineering-workflow --marketplace leejungmin91/codex-engineering-workflow
+/plugin install engineering-workflow --marketplace leejungmin91/engineering-workflow
 ```
 
 To update an existing installation, run `claude plugin marketplace update engineering-workflow` and then `claude plugin update engineering-workflow@engineering-workflow`. Restart Claude Code to apply the update.
@@ -52,7 +52,7 @@ To update an existing installation, run `claude plugin marketplace update engine
 
 ### Claude Desktop, web, and Cowork
 
-Open **Customize → Plugins → Add → Add marketplace**. Add `leejungmin91/codex-engineering-workflow` as a repository, then add **Engineering Workflow** from that source. Your plan and organization policy control which marketplaces and tools are available. [Claude app plugin docs](https://support.claude.com/en/articles/13837440-use-plugins-in-claude)
+Open **Customize → Plugins → Add → Add marketplace**. Add `leejungmin91/engineering-workflow` as a repository, then add **Engineering Workflow** from that source. Your plan and organization policy control which marketplaces and tools are available. [Claude app plugin docs](https://support.claude.com/en/articles/13837440-use-plugins-in-claude)
 
 ### Cursor, Gemini CLI, and other Agent Skills hosts
 
