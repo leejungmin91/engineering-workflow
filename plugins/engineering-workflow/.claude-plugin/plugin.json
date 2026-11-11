@@ -1,0 +1,8 @@
+{
+  "name": "engineering-workflow",
+  "version": "0.2.0",
+  "description": "Plan dependencies, verify work, and report completion evidence.",
+  "author": {
+    "name": "leejungmin91"
+  }
+}

@@ -1,50 +1,62 @@
-# Engineering Workflow for Codex
+# Engineering Workflow
 
-A Codex plugin for three parts of software engineering work.
-
-- **Harness engineering** sets acceptance criteria and checks that the completion record contains passing results for the work being reviewed.
-- **Loop engineering** reproduces a failure, makes a focused change, and runs the check again with a clear stopping rule.
-- **Graph engineering** maps dependencies between work items, detects invalid or cyclic dependencies, and identifies what needs to be verified again after an upstream change.
+One portable Agent Skill for harness engineering, verification loops, and task dependency graphs. Use it from a CLI or an app and add Slack or Discord context when the task needs it.
 
 ## Install
 
-Run these commands in a terminal with the Codex CLI installed.
+### Codex CLI and desktop app
 
 ```sh
-codex plugin marketplace add leejungmin91/codex-engineering-workflow --ref v0.1.0
+codex plugin marketplace add leejungmin91/codex-engineering-workflow --ref v0.2.0
 codex plugin add engineering-workflow@engineering-workflow
 ```
 
-In the ChatGPT desktop app, you can also restart the app after adding the marketplace, then install **Engineering Workflow** from the **Engineering Workflow** source in the Plugins Directory. Start a new chat after installation. See [OpenAI's plugin marketplace instructions](https://developers.openai.com/plugins/build/plugins#add-a-marketplace-from-the-cli).
+If you registered a previous pinned version, run `codex plugin marketplace remove engineering-workflow` before adding the new version.
 
-Select the **Engineering Workflow** skill or ask Codex:
+In Codex desktop, restart after adding the marketplace and install **Engineering Workflow** from the **Engineering Workflow** source in the Plugins Directory. Open a new chat to use the skill. [Codex marketplace docs](https://developers.openai.com/plugins/build/plugins#add-a-marketplace-from-the-cli)
 
-> Use the Engineering Workflow skill to plan this change, verify the result, and report any remaining failures.
+### Claude Code
 
-The workflow follows the current project's tools and instructions. Python 3.9 or later runs the optional completion checker. For each task, the checker evaluates the recorded dependency order, status, and evidence against the supplied snapshot. The project's own tools run the tests and determine the actual results.
+```sh
+claude plugin marketplace add leejungmin91/codex-engineering-workflow
+claude plugin install engineering-workflow@engineering-workflow
+```
 
-## Try the checker
+In a new session, run `/engineering-workflow:engineering-workflow`. On Claude Code 2.1.275 or later, the in-session command below also installs it.
 
-From a checkout of this repository, run:
+```text
+/plugin install engineering-workflow --marketplace leejungmin91/codex-engineering-workflow
+```
+
+[Claude Code marketplace docs](https://code.claude.com/docs/en/plugin-marketplaces)
+
+### Claude Desktop, web, and Cowork
+
+Open **Customize → Plugins → Add → Add marketplace**. Add `leejungmin91/codex-engineering-workflow` as a repository, then add **Engineering Workflow** from that source. Your plan and organization policy control which marketplaces and tools are available. [Claude app plugin docs](https://support.claude.com/en/articles/13837440-use-plugins-in-claude)
+
+### Cursor, Gemini CLI, and other Agent Skills hosts
+
+Copy the entire [engineering-workflow skill directory](plugins/engineering-workflow/skills/engineering-workflow) into your tool's Agent Skills directory. Cursor and Gemini CLI both document `~/.agents/skills/` for user-wide use. For other hosts, use their documented location. In a chat app that only accepts text, provide the SKILL.md as instructions and use the app's available tools. [Cursor](https://prod.cursor.com/docs/skills) · [Gemini CLI](https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/using-agent-skills.md)
+
+## Use
+
+> Use Engineering Workflow to identify what depends on this change, run the required checks, and report the result with a diagram.
+
+The workflow defines the acceptance checks, orders the work, and revisits failed checks after a focused change. The optional checker uses Python 3.9 or later to validate the completion record against the current work snapshot.
 
 ```sh
 python plugins/engineering-workflow/skills/engineering-workflow/scripts/check_record.py examples/incomplete.json --snapshot current
 ```
 
-Use `python3` if that is the Python command on your machine. This example exits with code 1 because the parser regression failed, lint evidence is from an earlier snapshot, and the UI check is still pending. See the [record format](plugins/engineering-workflow/skills/engineering-workflow/references/harness-record.md) for all exit codes.
-
-Run the regression suite with:
-
-```sh
-python -m unittest discover -s plugins/engineering-workflow/skills/engineering-workflow/tests
-```
-
-[Workflow sources](plugins/engineering-workflow/skills/engineering-workflow/references/source-skills.md) · [Optional Codex hook recommendations](plugins/engineering-workflow/skills/engineering-workflow/references/hook-recommendations.md)
+The example reports a failed regression, stale lint evidence, and a pending UI check. See the [record format](plugins/engineering-workflow/skills/engineering-workflow/references/harness-record.md).
 
 ## 한국어
 
-이 플러그인은 작업의 **합격 기준**을 세우고, **선행 작업과 영향 범위**를 확인하고, **실패를 고친 뒤 다시 검사**하는 데 사용합니다. 위 설치 명령을 실행한 뒤 새 Codex 채팅에서 이렇게 요청하세요.
+위 설치 절차 중 사용하는 CLI나 앱을 선택한 뒤 새 채팅에서 이렇게 요청하세요.
 
-> Engineering Workflow 스킬로 작업 순서와 합격 기준을 정하고, 검증 결과와 남은 실패를 알려줘.
+> Engineering Workflow로 작업 순서와 합격 기준을 정하고, 검증한 내용과 남은 문제를 다이어그램과 함께 보고해 줘.
 
-완료 검사기는 기록이 현재 작업본과 일치하는지 점검합니다. 필수 테스트는 프로젝트 도구로 실행합니다. 작업 그래프는 개발 작업 사이의 선행 관계를 표현합니다. 플러그인의 [훅 도입안](plugins/engineering-workflow/skills/engineering-workflow/references/hook-recommendations.md)에서 별도로 적용할 제한을 검토할 수 있습니다.
+- [Slack·Discord MCP 설치 안내](docs/mcp-setup.md)
+- [구현·검증 보고서와 다이어그램](docs/implementation-report.md)
+- [참고한 스킬 10개](plugins/engineering-workflow/skills/engineering-workflow/references/source-skills.md)
+- [선택형 훅 도입안](plugins/engineering-workflow/skills/engineering-workflow/references/hook-recommendations.md)

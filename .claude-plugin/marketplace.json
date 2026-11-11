@@ -1,0 +1,12 @@
+{
+  "name": "engineering-workflow",
+  "description": "Portable engineering harness, verification loop, and task dependency workflow.",
+  "owner": {"name": "leejungmin91"},
+  "plugins": [
+    {
+      "name": "engineering-workflow",
+      "source": "./plugins/engineering-workflow",
+      "description": "Plan dependencies, verify work, and report completion evidence."
+    }
+  ]
+}
