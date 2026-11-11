@@ -1,24 +1,38 @@
 # Engineering Workflow
 
+[한국어](README.ko.md)
+
 One portable Agent Skill for harness engineering, verification loops, and task dependency graphs. Use it from a CLI or an app and add Slack or Discord context when the task needs it.
 
 ## Architecture
 
+**Install.** Register the GitHub repository as a marketplace and install the plugin in Codex or Claude Code. The host keeps a local copy of the skill. Other Agent Skills hosts can load the same skill directory directly.
+
+**Run.** When you submit a prompt, the host uses the names and descriptions in its skill catalog to select a skill and loads the selected `SKILL.md` and relevant references. If configured, the `UserPromptSubmit` hook searches a local English keyword index and suggests up to three skill names. The host confirms the candidates and decides which skill to load.
+
 ```mermaid
 flowchart TB
-    Prompt["Prompt · Codex / Claude Code / other hosts"] --> Select["Select a skill from the host catalog"]
+    Prompt["User prompt"] --> Catalog["Host skill catalog"]
     Prompt -. optional .-> Index["UserPromptSubmit<br/>Local English keyword index"]
-    Index -. up to three candidate names .-> Select
-    Select --> Core["Engineering Workflow<br/>Harness → Task graph → Verification loop"]
-    Optional["Slack / Discord MCP · Git PreToolUse"] -. optional .-> Core
-    Core --> Report["Independent review when needed<br/>Evidence and final report"]
+    Index -. up to 3 candidates .-> Catalog
+    Catalog --> Skill["Load skill"]
+    Skill --> Harness["Harness<br/>Set pass criteria"]
+    Harness --> Graph["Task graph<br/>Order the work"]
+    Graph --> Loop["Verification loop<br/>Check, fix, repeat"]
+    Loop --> Review["Review as needed"]
+    Review -. findings .-> Loop
+    Review --> Report["Report evidence"]
 ```
 
-When the host lets you choose a model, use the smallest capable one for each role. Use a lightweight model for routine edits, a standard model for integration or debugging, and a more capable model for architecture or high-risk reviews. [Superpowers](https://github.com/obra/superpowers)
+| Part | What it does | Example |
+| --- | --- | --- |
+| Harness | Defines scope, expected behavior, and the checks needed to finish. | A parser change must preserve valid input and return the expected error for invalid input. |
+| Task graph | Records prerequisites and determines which steps can run independently. | Confirm the parser contract, update the parser, then check both callers in parallel. |
+| Verification loop | Runs checks against the current change and rechecks the affected cases after a focused fix. | Reproduce a caller failure, fix the cause, and rerun its regression check. |
 
-See the [skill discovery and index guide](plugins/engineering-workflow/skills/engineering-workflow/references/skill-index.md) for native lookup and the optional prompt hook.
+Independent review checks the diff and evidence when requested or when shared contracts, data, permissions, or deployments change. The final report lists the result, checks run, and open issues. When the host offers model selection, the workflow uses the lightest model suited to each role.
 
-The optional completion checker compares recorded checks with the current work snapshot. See the [full workflow and report handoff](docs/workflow-flow.md).
+Slack and Discord MCP can provide task context. The separate Git `PreToolUse` hook checks selected Git commands before execution. Both integrations are optional. See the [skill index guide](plugins/engineering-workflow/skills/engineering-workflow/references/skill-index.md), [MCP setup](docs/mcp-setup.md), and [hook examples](integrations/hooks/README.md).
 
 ## Install
 
@@ -70,16 +84,27 @@ python plugins/engineering-workflow/skills/engineering-workflow/scripts/check_re
 
 The example reports a failed regression, stale lint evidence, and a pending UI check. See the [record format](plugins/engineering-workflow/skills/engineering-workflow/references/harness-record.md).
 
-## 한국어
+## Source skills
 
-위 구조도는 **스킬 검색 → 합격 기준 → 작업 순서 → 구현·재검사 → 교차검토 → 보고**를 보여 줍니다. 검토에서 수정할 점을 찾으면 영향을 받은 검사로 돌아가고, 막히면 확인한 근거와 남은 문제를 보고합니다.
+The plugin ships one skill, `engineering-workflow`. Its workflow adapts techniques from these ten source skills.
 
-위 설치 절차 중 사용하는 CLI나 앱을 선택한 뒤 새 채팅에서 이렇게 요청하세요.
+| Source skill | Technique used here |
+| --- | --- |
+| Matt Pocock · `diagnosing-bugs` | Reproduce the failure with the smallest useful input before editing. |
+| Superpowers · `verification-before-completion` | Use passing results from the final work snapshot as completion evidence. |
+| ECC · `eval-harness` | Define success and regression cases, then compare the same cases before and after a workflow change. |
+| Karpathy Skills · `karpathy-guidelines` | Set a clear scope and checks, and keep the diff focused. |
+| Anthropic · `webapp-testing` | Verify the affected user flow in the actual interface when available. |
+| Ponytail · `ponytail` | Look for existing code and tools before adding new ones. |
+| UI UX Pro Max · `ui-ux-pro-max` | Include accessibility and relevant viewport sizes in UI checks. |
+| Graphify · `graphify` | Mark task dependencies as confirmed or inferred. |
+| gstack · `review` | Inspect the final diff for impact on shared contracts, data, and permissions. |
+| Caveman · `caveman` | Lead with results and evidence while keeping important conditions visible. |
 
-> Engineering Workflow로 작업 순서와 합격 기준을 정하고, 검증한 내용과 남은 문제를 다이어그램과 함께 보고해 줘.
+See the [source notes](plugins/engineering-workflow/skills/engineering-workflow/references/source-skills.md) for the selection method and links to the exact source revisions.
 
-- [Slack·Discord MCP 설치 안내](docs/mcp-setup.md)
-- [전체 실행 흐름·교차검토·보고서 다이어그램](docs/workflow-flow.md)
-- [다중 도구 배포 보고서](docs/implementation-report.md)
-- [참고한 스킬 10개](plugins/engineering-workflow/skills/engineering-workflow/references/source-skills.md)
-- [선택형 훅 도입안](plugins/engineering-workflow/skills/engineering-workflow/references/hook-recommendations.md)
+## Further reading
+
+- [Workflow, cross-review, and report diagrams](docs/workflow-flow.md)
+- [Multi-host implementation report](docs/implementation-report.md)
+- [Optional hook recommendations](plugins/engineering-workflow/skills/engineering-workflow/references/hook-recommendations.md)
