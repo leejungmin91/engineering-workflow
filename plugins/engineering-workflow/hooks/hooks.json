@@ -1,0 +1,28 @@
+{
+  "description": "Engineering Workflow safety hooks: deny commit, push, or PR creation the latest user message did not request; deny commits that add secrets; record Codex prompts per turn.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/run.sh\" guard_git",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/run.sh\" record_prompt",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

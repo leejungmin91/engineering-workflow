@@ -1,7 +1,7 @@
 {
   "name": "engineering-workflow",
-  "version": "0.4.0",
-  "description": "Plan dependencies, verify work, and report completion evidence.",
+  "version": "0.5.0",
+  "description": "Plan dependencies, verify work, report completion evidence, and guard commit, push, and PR creation behind explicit user requests.",
   "author": {
     "name": "leejungmin91"
   }

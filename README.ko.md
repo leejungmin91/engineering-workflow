@@ -38,14 +38,14 @@ flowchart TB
 
 요청이 있거나 공용 계약, 데이터, 권한, 배포에 영향이 있으면 교차검토로 최종 변경과 검증 근거를 확인합니다. 마지막 보고에는 결과, 실행한 검사, 남은 문제가 들어갑니다. 모델 선택이 가능한 도구에서는 역할마다 해당 작업을 감당할 수 있는 가장 가벼운 모델을 사용합니다.
 
-Slack·Discord MCP는 필요할 때 관련 맥락을 읽는 데 사용합니다. Git `PreToolUse` 훅은 설정한 Git 명령을 실행 전에 검사하는 별도 선택 사항입니다. [스킬 인덱스 안내](plugins/engineering-workflow/skills/engineering-workflow/references/skill-index.md) · [MCP 연동](docs/mcp-setup.md) · [훅 설정 예제](integrations/hooks/README.md)
+플러그인을 설치하면 기계적 안전장치인 훅 두 개가 함께 등록됩니다. 커밋·푸시·PR 생성은 최근 사용자 메시지가 요청했을 때만 실행되고, 비밀 값이 들어가는 커밋은 막힙니다. [훅](#훅) 절을 보세요. Slack·Discord MCP는 필요할 때 관련 맥락을 읽는 선택 사항입니다. [스킬 인덱스 안내](plugins/engineering-workflow/skills/engineering-workflow/references/skill-index.md) · [MCP 연동](docs/mcp-setup.md)
 
 ## 설치
 
 ### Codex CLI와 데스크톱 앱
 
 ```sh
-codex plugin marketplace add leejungmin91/engineering-workflow --ref v0.4.0
+codex plugin marketplace add leejungmin91/engineering-workflow --ref v0.5.0
 codex plugin add engineering-workflow@engineering-workflow
 ```
 
@@ -75,6 +75,26 @@ claude plugin install engineering-workflow@engineering-workflow
 ### Cursor, Gemini CLI, 그 외 Agent Skills 지원 도구
 
 [engineering-workflow 스킬 폴더](plugins/engineering-workflow/skills/engineering-workflow) 전체를 사용하는 도구의 스킬 경로에 복사합니다. Cursor와 Gemini CLI에서 사용자 범위 경로는 `~/.agents/skills/`입니다. 텍스트 지침만 받는 앱에서는 `SKILL.md`를 지침으로 제공하고 앱에서 제공하는 도구로 실행합니다. [Cursor](https://prod.cursor.com/docs/skills) · [Gemini CLI](https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/using-agent-skills.md)
+
+## 훅
+
+플러그인을 설치하면 Claude Code와 Codex에 아래 훅이 등록됩니다. Codex는 플러그인 훅을 한 번 신뢰로 승인해야 하며, 승인 전에는 돌지 않습니다.
+
+| 훅 | 이벤트 | 동작 |
+| --- | --- | --- |
+| `guard_git` | `Bash`·`PowerShell` 도구의 `PreToolUse` | 최근 사용자 메시지가 요청하지 않은 `git commit`, `git push`, PR/MR 생성(`gh pr create`, `glab mr create`, 푸시 옵션, pulls·merge_requests API에 쓰기 요청)을 막습니다. 커밋이 더하는 줄이나 `git add` 대상 미추적 파일에 비밀 값이 있으면 막습니다. |
+| `record_prompt` | `UserPromptSubmit` | Codex 전용. 이번 턴의 사용자 메시지를 `~/.engineering-workflow/prompts/`에 저장해 가드가 읽게 합니다. 7일 지난 파일은 지웁니다. |
+
+요청은 최근 메시지에 동작 낱말과 요청 끝말이 함께 있는 것입니다. 한국어·영어 모두 봅니다: `커밋해 줘`, `푸시해`, `커밋 푸시`, `올려 줘`(커밋과 푸시), `commit it`, `push the changes`, `PR 만들어 줘`, `open a pull request`. 부정·보류 표현은 요청이 아닙니다: `커밋하지 마`, `푸시는 아직`, `don't push yet`, `푸시하기 전에 검토해 줘`. 푸시 요청으로 PR을 열지 않고, 앞 메시지의 요청은 다음 턴으로 이어지지 않습니다. 드라이런(`--dry-run`, `-n`)은 통과합니다.
+
+필요한 것과 한계:
+
+- PATH에 Python 3.9 이상(`python3`, `python`, `py` 중 하나)과 `sh`(Git for Windows에 포함)가 있어야 합니다. 실행할 인터프리터가 없으면 가드는 조용히 통과시키지 않고 막은 뒤 이유를 알립니다.
+- 가드는 명령 글자와 저장소 상태만 봅니다. 스크립트 파일 안의 동작, 별칭, 변수에 담긴 값은 보지 못합니다. 그 부분은 호스트 권한과 브랜치 보호 규칙으로 막습니다.
+- Claude Code에서는 세션 기록에서, Codex에서는 `record_prompt`가 저장한 파일에서 최근 메시지를 읽습니다. 둘 다 읽지 못하면 막고 이유를 알립니다.
+- 훅을 끄려면 플러그인을 끄거나 지워야 하며, 그러면 스킬도 함께 꺼집니다. 사용자 훅으로 막힌 것을 풀 수 없습니다.
+
+훅 시험은 [`tools/hook_tests`](tools/hook_tests)에 있고 `python -m unittest discover -s tools/hook_tests`로 실행합니다. 가짜 JSON 입력과 임시 Git 저장소만 쓰며, 막는 대상 명령은 실행하지 않습니다.
 
 ## 사용 예시
 
@@ -111,4 +131,5 @@ python plugins/engineering-workflow/skills/engineering-workflow/scripts/check_re
 
 - [전체 실행 흐름·교차검토·보고서 구조도](docs/workflow-flow.md)
 - [여러 도구로 배포한 작업 보고서](docs/implementation-report.md)
-- [선택형 훅 추천](plugins/engineering-workflow/skills/engineering-workflow/references/hook-recommendations.md)
+- [훅 범위와 선택형 스킬 색인 훅](plugins/engineering-workflow/skills/engineering-workflow/references/hook-recommendations.md)
+- [플러그인 색인](plugins/engineering-workflow/INDEX.md) · [변경 이력](plugins/engineering-workflow/CHANGELOG.md)

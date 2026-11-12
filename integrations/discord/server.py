@@ -31,7 +31,7 @@ def read_messages(channel_id, limit, allowed_channels, token):
         f"https://discord.com/api/v10/channels/{channel_id}/messages?limit={limit}",
         headers={
             "Authorization": f"Bot {token}",
-            "User-Agent": "DiscordBot (https://github.com/leejungmin91/codex-engineering-workflow, 0.2)",
+            "User-Agent": "DiscordBot (https://github.com/leejungmin91/engineering-workflow, 0.5)",
         },
         method="GET",
     )

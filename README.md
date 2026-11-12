@@ -36,14 +36,14 @@ flowchart TB
 
 Independent review checks the diff and evidence when requested or when shared contracts, data, permissions, or deployments change. The final report lists the result, checks run, and open issues. When the host offers model selection, the workflow uses the lightest model suited to each role.
 
-Slack and Discord MCP can provide task context. The separate Git `PreToolUse` hook checks selected Git commands before execution. Both integrations are optional. See the [skill index guide](plugins/engineering-workflow/skills/engineering-workflow/references/skill-index.md), [MCP setup](docs/mcp-setup.md), and [hook examples](integrations/hooks/README.md).
+The plugin installs two hooks that act as mechanical safeguards: commit, push, and PR creation run only when the latest user message asks for them, and a commit that would add a secret is denied. See [Hooks](#hooks). Slack and Discord MCP can provide task context and stay optional. See the [skill index guide](plugins/engineering-workflow/skills/engineering-workflow/references/skill-index.md) and [MCP setup](docs/mcp-setup.md).
 
 ## Install
 
 ### Codex CLI and desktop app
 
 ```sh
-codex plugin marketplace add leejungmin91/engineering-workflow --ref v0.4.0
+codex plugin marketplace add leejungmin91/engineering-workflow --ref v0.5.0
 codex plugin add engineering-workflow@engineering-workflow
 ```
 
@@ -75,6 +75,26 @@ Open **Customize → Plugins → Add → Add marketplace**. Add `leejungmin91/en
 ### Cursor, Gemini CLI, and other Agent Skills hosts
 
 Copy the entire [engineering-workflow skill directory](plugins/engineering-workflow/skills/engineering-workflow) into your tool's Agent Skills directory. Cursor and Gemini CLI both document `~/.agents/skills/` for user-wide use. For other hosts, use their documented location. In a chat app that only accepts text, provide the SKILL.md as instructions and use the app's available tools. [Cursor](https://prod.cursor.com/docs/skills) · [Gemini CLI](https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/using-agent-skills.md)
+
+## Hooks
+
+Installing the plugin registers these hooks in Claude Code and Codex. Codex asks you to trust plugin hooks once; until you do, they do not run.
+
+| Hook | Event | What it does |
+| --- | --- | --- |
+| `guard_git` | `PreToolUse` on `Bash` and `PowerShell` | Denies `git commit`, `git push`, and PR/MR creation (`gh pr create`, `glab mr create`, push options, HTTP writes to a pulls or merge_requests API) unless the latest user message requests that action. Denies a commit whose added lines, or untracked files named by `git add`, contain a secret. |
+| `record_prompt` | `UserPromptSubmit` | Codex only. Saves the prompt of the current turn under `~/.engineering-workflow/prompts/` so the guard can read it. Files older than seven days are removed. |
+
+A request is the action word plus a request form in the latest message, in Korean or English: `커밋해 줘`, `푸시해`, `커밋 푸시`, `올려 줘` (commit and push), `commit it`, `push the changes`, `PR 만들어 줘`, `open a pull request`. Negated or deferred phrases do not count: `커밋하지 마`, `푸시는 아직`, `don't push yet`, `review before pushing`. A push request does not open a PR, and a request in an earlier message does not carry over. Dry runs (`--dry-run`, `-n`) pass.
+
+Requirements and limits:
+
+- Python 3.9 or newer on PATH as `python3`, `python`, or `py`, and `sh` (Git for Windows provides it). When no interpreter runs, the guard denies the call and says so rather than failing open.
+- The guard reads command text and repository state only. It cannot see inside scripts, aliases, or variables. Keep host permissions and branch protection for those.
+- In Claude Code the latest message comes from the session transcript; in Codex it comes from `record_prompt`. When neither is readable the guard denies and explains why.
+- To stop the hooks, disable or uninstall the plugin. That also turns off the skill. A user hook cannot override a denial.
+
+The hook tests live in [`tools/hook_tests`](tools/hook_tests) and run with `python -m unittest discover -s tools/hook_tests`. They feed synthetic JSON to the hooks and create throwaway Git repositories; they never run the guarded commands.
 
 ## Use
 
@@ -111,4 +131,5 @@ See the [source notes](plugins/engineering-workflow/skills/engineering-workflow/
 
 - [Workflow, cross-review, and report diagrams](docs/workflow-flow.md)
 - [Multi-host implementation report](docs/implementation-report.md)
-- [Optional hook recommendations](plugins/engineering-workflow/skills/engineering-workflow/references/hook-recommendations.md)
+- [Hook scope and the optional skill index hook](plugins/engineering-workflow/skills/engineering-workflow/references/hook-recommendations.md)
+- [Plugin index](plugins/engineering-workflow/INDEX.md) · [Changelog](plugins/engineering-workflow/CHANGELOG.md)

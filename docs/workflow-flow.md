@@ -19,7 +19,7 @@ flowchart TD
     Findings -->|수정 필요| Change
     Findings -->|현재 작업본 검토 완료| Report
     Fallback -->|새 세션 사용 불가| Pending
-    Hook["선택형 PreToolUse<br/>직접 Git 명령 일부 제한"] -. 실행 직전 .-> Change
+    Hook["PreToolUse 가드<br/>요청 없는 커밋·푸시·PR, 비밀 값 차단"] -. 실행 직전 .-> Change
     Context["Slack · Discord<br/>필요한 자료만 연결"] -. 참고 .-> Start
 ```
 
@@ -40,7 +40,7 @@ flowchart TD
 
 ## 훅과 보고서
 
-기본 훅은 **0개**다. 저장소는 Codex와 Claude Code에서 선택적으로 켤 수 있는 **`PreToolUse` 하나**를 제공한다. 첫 직접 Git 명령 중 `reset --hard`, `clean -fdx`, `push --force`를 막는다. 보고서와 검토는 스킬의 작업 단계에서 관리한다. [훅 설치와 범위](../integrations/hooks/README.md)
+0.5.0부터 플러그인은 훅 **두 개**를 설치와 함께 등록한다. `PreToolUse` 가드는 최근 사용자 메시지가 요청하지 않은 커밋·푸시·PR 생성과 비밀 값이 들어가는 커밋을 막고, `UserPromptSubmit` 기록 훅은 Codex의 턴별 메시지를 저장한다. 0.3.0의 선택형 훅(첫 Git 명령의 `reset --hard`·`clean -fdx`·`push --force` 차단)은 이것으로 대체했다. 보고서와 검토는 스킬의 작업 단계에서 관리한다. [훅 범위](../plugins/engineering-workflow/skills/engineering-workflow/references/hook-recommendations.md)
 
 | 보고서 | 작성 시점 | 적용 방법 |
 | --- | --- | --- |

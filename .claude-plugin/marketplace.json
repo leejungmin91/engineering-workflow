@@ -6,7 +6,7 @@
     {
       "name": "engineering-workflow",
       "source": "./plugins/engineering-workflow",
-      "description": "Plan dependencies, verify work, and report completion evidence."
+      "description": "Plan dependencies, verify work, report completion evidence, and guard commit, push, and PR creation behind explicit user requests."
     }
   ]
 }
