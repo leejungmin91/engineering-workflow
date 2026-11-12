@@ -9,8 +9,11 @@ import json
 import os
 import re
 import sys
+import tempfile
 import time
 from pathlib import Path
+
+from approval import ACTIONS, approved_actions
 
 PROMPT_RETENTION_SECONDS = 7 * 24 * 60 * 60
 SESSION_FILE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")
@@ -94,18 +97,24 @@ def _session_file(event):
     return prompts_dir() / f"{session}.json"
 
 
-def save_prompt(event):
-    """Store the Codex prompt for this turn so PreToolUse hooks can read it."""
+def save_prompt_approvals(event):
+    """Store only the Codex actions approved for this turn."""
     path = _session_file(event)
     prompt = event.get("prompt")
     turn = event.get("turn_id")
     if path is None or not isinstance(prompt, str) or not isinstance(turn, str):
         return False
-    path.parent.mkdir(parents=True, exist_ok=True)
-    data = {"turn_id": turn, "prompt": prompt, "saved_at": time.time()}
-    temporary = path.with_suffix(".tmp")
-    temporary.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
-    temporary.replace(path)
+    state_dir().mkdir(mode=0o700, parents=True, exist_ok=True)
+    path.parent.mkdir(mode=0o700, exist_ok=True)
+    data = {"turn_id": turn, "actions": sorted(approved_actions(prompt))}
+    file = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent, delete=False)
+    temporary = Path(file.name)
+    try:
+        with file:
+            json.dump(data, file)
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
     prune_prompts()
     return True
 
@@ -124,8 +133,8 @@ def prune_prompts(now=None):
             continue
 
 
-def recorded_prompt(event):
-    """Return the Codex prompt recorded for the same turn, else None."""
+def recorded_approvals(event):
+    """Return the Codex approvals recorded for the same turn, else None."""
     path = _session_file(event)
     if path is None or not path.is_file():
         return None
@@ -135,8 +144,10 @@ def recorded_prompt(event):
         return None
     if not isinstance(data, dict) or data.get("turn_id") != event.get("turn_id"):
         return None
-    prompt = data.get("prompt")
-    return prompt if isinstance(prompt, str) else None
+    actions = data.get("actions")
+    if not isinstance(actions, list) or any(action not in ACTIONS for action in actions):
+        return None
+    return set(actions)
 
 
 def _text_of(content):
@@ -178,19 +189,24 @@ def transcript_last_user_message(path):
                 message = entry.get("message")
                 if not isinstance(message, dict):
                     continue
-                text = _text_of(message.get("content")).strip()
-                if text:
-                    last = text
+                content = message.get("content")
+                if isinstance(content, str) or (
+                    isinstance(content, list)
+                    and any(isinstance(item, dict) and item.get("type") in ("text", "image", "document")
+                            for item in content)
+                ):
+                    last = _text_of(content).strip()
     except OSError:
         return None
     return last
 
 
-def last_user_message(event):
-    """Latest user message for this turn. None when it cannot be determined."""
+def action_approvals(event):
+    """Return the actions the latest user message approved, or None if unavailable."""
     if is_codex(event):
-        return recorded_prompt(event)
-    return transcript_last_user_message(event.get("transcript_path"))
+        return recorded_approvals(event)
+    message = transcript_last_user_message(event.get("transcript_path"))
+    return approved_actions(message) if message is not None else None
 
 
 def shell_tool_command(event):

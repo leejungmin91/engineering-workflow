@@ -1,7 +1,7 @@
-"""UserPromptSubmit hook: store the Codex prompt for this turn.
+"""UserPromptSubmit hook: store the actions approved in the Codex prompt.
 
 Claude Code hooks can read the transcript, so nothing is stored there. Codex
-transcripts differ, so PreToolUse guards read the prompt saved here instead.
+transcripts differ, so PreToolUse guards read the approvals saved here instead.
 This hook never blocks and never prints.
 """
 
@@ -10,7 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from hook_common import is_codex, read_event, save_prompt  # noqa: E402
+from hook_common import is_codex, read_event, save_prompt_approvals  # noqa: E402
 
 
 def main():
@@ -20,7 +20,7 @@ def main():
     if not is_codex(event):
         return 0
     try:
-        save_prompt(event)
+        save_prompt_approvals(event)
     except OSError:
         pass
     return 0

@@ -68,11 +68,11 @@ class HookCase(unittest.TestCase):
             event["turn_id"] = turn
             event["model"] = "gpt-test"
             if recorded is not None:
-                folder = self.home / "prompts"
-                folder.mkdir(parents=True, exist_ok=True)
-                (folder / "session-1.json").write_text(json.dumps(
-                    {"turn_id": recorded_turn, "prompt": recorded, "saved_at": time.time()},
-                    ensure_ascii=False), encoding="utf-8")
+                result = self.run_script(RECORD, {
+                    "hook_event_name": "UserPromptSubmit", "session_id": event["session_id"],
+                    "turn_id": recorded_turn, "prompt": recorded,
+                })
+                self.assertEqual(result.returncode, 0, result.stderr)
         elif transcript:
             event["transcript_path"] = self.transcript(*(message if isinstance(message, list) else [message or "안녕"]))
         result = self.run_script(GUARD, event)
@@ -124,6 +124,34 @@ class RequestPhraseTests(HookCase):
         self.assertEqual(self.decision("git commit -m x", "테스트 돌려 줘"), "deny")
         self.assertIn("does not request", self.reason)
 
+    def test_read_only_requests_and_negations_do_not_authorize_writes(self):
+        for command, message in (
+            ("git commit -m x", "Show me the latest commit"),
+            ("git commit -m x", "커밋 내용 확인해 줘"),
+            ("gh pr create --fill", "Review the PR"),
+            ("git push", "Don’t push it"),
+            ("git push", "푸시 말고 테스트만 해 줘"),
+            ("git push", "Don't commit and push"),
+            ("git push", "Do not commit, push, or open a PR"),
+            ("git commit -m x", "커밋, 푸시하지 마"),
+            ("git commit -m x", "Commit it. Actually, do not commit."),
+            ("git push", "Explain `git push`"),
+        ):
+            with self.subTest(message=message):
+                self.assertEqual(self.decision(command, message), "deny")
+
+    def test_attachment_only_user_message_clears_previous_approval(self):
+        path = Path(self.transcript("push it"))
+        attachment = {"type": "user", "message": {"role": "user", "content": [{"type": "image"}]}}
+        with path.open("a", encoding="utf-8") as transcript:
+            transcript.write(json.dumps(attachment) + "\n")
+        event = {"hook_event_name": "PreToolUse", "tool_name": "Bash",
+                 "tool_input": {"command": "git push"}, "transcript_path": str(path)}
+        result = self.run_script(GUARD, event)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(result.stdout)
+        self.assertEqual(json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"], "deny")
+
     def test_only_latest_message_counts(self):
         self.assertEqual(self.decision("git push", ["푸시해 줘", "이제 문서만 고쳐"]), "deny")
         self.assertEqual(self.decision("git push", ["문서만 고쳐", "푸시해 줘"]), "allow")
@@ -154,6 +182,9 @@ class CommandShapeTests(HookCase):
                         "cat notes.md # git commit later", "gh pr list", "gh pr view 3"):
             with self.subTest(command=command):
                 self.assertEqual(self.decision(command, "테스트"), "allow")
+
+    def test_commit_short_option_is_not_a_dry_run(self):
+        self.assertEqual(self.decision("git commit -n -m x", "테스트"), "deny")
 
     def test_powershell_tool_is_checked(self):
         self.assertEqual(self.decision("git commit -m x", "테스트", tool="PowerShell"), "deny")
@@ -225,6 +256,22 @@ class SecretTests(HookCase):
         git(self.repo, "add", "config.py")
         self.assertEqual(self.decision(f"cd {self.repo} && git commit -m x", "커밋해 줘", cwd=self.tmp), "deny")
 
+    def test_secret_scan_uses_the_commit_repository(self):
+        other = self.tmp / "other"
+        other.mkdir()
+        git(other, "init", "-q")
+        self.write("config.py", 'TOKEN = "glpat-' + "e" * 24 + '"\n')
+        git(self.repo, "add", "config.py")
+        commands = (
+            f"git -C {other} status && git commit -m x",
+            f"cd {self.tmp} && git -C {self.repo.name} commit -m x",
+            f"(cd {other} && git status) && git commit -m x",
+        )
+        for command in commands:
+            with self.subTest(command=command):
+                self.assertEqual(self.decision(command, "커밋해 줘"), "deny")
+                self.assertIn("GitLab token", self.reason)
+
 
 class CodexTests(HookCase):
     def test_same_turn_prompt_allows(self):
@@ -242,12 +289,18 @@ class CodexTests(HookCase):
 
     def test_record_prompt_hook_round_trip(self):
         event = {"hook_event_name": "UserPromptSubmit", "session_id": "session-1", "turn_id": "turn-9",
-                 "prompt": "푸시해 줘", "cwd": str(self.repo)}
+                 "prompt": "푸시해 줘. private test note", "cwd": str(self.repo)}
         result = self.run_script(RECORD, event)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), "")
-        saved = json.loads((self.home / "prompts" / "session-1.json").read_text(encoding="utf-8"))
+        path = self.home / "prompts" / "session-1.json"
+        saved = json.loads(path.read_text(encoding="utf-8"))
         self.assertEqual(saved["turn_id"], "turn-9")
+        self.assertEqual(saved["actions"], ["push"])
+        self.assertNotIn("prompt", saved)
+        if os.name == "posix":
+            self.assertEqual(path.stat().st_mode & 0o077, 0)
+            self.assertEqual(path.parent.stat().st_mode & 0o077, 0)
         self.assertEqual(self.decision("git push", codex=True, turn="turn-9"), "allow")
 
     def test_record_prompt_ignores_claude_code(self):

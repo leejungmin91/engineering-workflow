@@ -1,5 +1,5 @@
 {
-  "description": "Engineering Workflow safety hooks: deny commit, push, or PR creation the latest user message did not request; deny commits that add secrets; record Codex prompts per turn.",
+  "description": "Engineering Workflow hooks check Git approvals and scan commits for secrets. Codex stores the approved actions for each turn.",
   "hooks": {
     "PreToolUse": [
       {

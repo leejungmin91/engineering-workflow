@@ -17,7 +17,7 @@
 | 훅 | 이벤트 | 동작 |
 | --- | --- | --- |
 | `guard_git` | `PreToolUse` (`Bash`, `PowerShell`) | 최근 사용자 메시지가 요청하지 않은 커밋·푸시·PR 생성을 막는다. 커밋이 더하는 내용에 비밀 값이 있으면 막는다 |
-| `record_prompt` | `UserPromptSubmit` | Codex에서만 턴별 사용자 메시지를 저장한다. 아무것도 막지 않는다 |
+| `record_prompt` | `UserPromptSubmit` | Codex에서 턴 ID와 요청된 Git 동작을 저장한다 |
 
 훅은 명령 글자와 저장소 상태만 본다. 스크립트 파일 안의 동작이나 변수에 담긴 값은 보지 못한다. 자세한 범위는 `skills/engineering-workflow/references/hook-recommendations.md`에 있다.
 

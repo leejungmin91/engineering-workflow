@@ -5,7 +5,7 @@ The plugin registers two hooks on installation (`hooks/hooks.json`). They are sa
 | Hook | Event | Purpose |
 | --- | --- | --- |
 | `guard_git` | `PreToolUse` on `Bash` and `PowerShell` | Deny commit, push, or PR/MR creation that the latest user message did not request. Deny a commit that would add a secret. |
-| `record_prompt` | `UserPromptSubmit` | Codex only: save the current turn's prompt so `guard_git` can read it. Never blocks. |
+| `record_prompt` | `UserPromptSubmit` | Codex only. Save the current turn ID and approved actions for `guard_git`. |
 
 How the guard decides:
 

@@ -45,7 +45,7 @@ flowchart TB
 ### Codex CLI와 데스크톱 앱
 
 ```sh
-codex plugin marketplace add leejungmin91/engineering-workflow --ref v0.5.0
+codex plugin marketplace add leejungmin91/engineering-workflow --ref main
 codex plugin add engineering-workflow@engineering-workflow
 ```
 
@@ -83,15 +83,15 @@ claude plugin install engineering-workflow@engineering-workflow
 | 훅 | 이벤트 | 동작 |
 | --- | --- | --- |
 | `guard_git` | `Bash`·`PowerShell` 도구의 `PreToolUse` | 최근 사용자 메시지가 요청하지 않은 `git commit`, `git push`, PR/MR 생성(`gh pr create`, `glab mr create`, 푸시 옵션, pulls·merge_requests API에 쓰기 요청)을 막습니다. 커밋이 더하는 줄이나 `git add` 대상 미추적 파일에 비밀 값이 있으면 막습니다. |
-| `record_prompt` | `UserPromptSubmit` | Codex 전용. 이번 턴의 사용자 메시지를 `~/.engineering-workflow/prompts/`에 저장해 가드가 읽게 합니다. 7일 지난 파일은 지웁니다. |
+| `record_prompt` | `UserPromptSubmit` | Codex 전용. 현재 턴 ID와 요청된 Git 동작을 `~/.engineering-workflow/prompts/`에 저장합니다. 새 기록을 저장할 때 7일이 지난 파일을 지웁니다. |
 
-요청은 최근 메시지에 동작 낱말과 요청 끝말이 함께 있는 것입니다. 한국어·영어 모두 봅니다: `커밋해 줘`, `푸시해`, `커밋 푸시`, `올려 줘`(커밋과 푸시), `commit it`, `push the changes`, `PR 만들어 줘`, `open a pull request`. 부정·보류 표현은 요청이 아닙니다: `커밋하지 마`, `푸시는 아직`, `don't push yet`, `푸시하기 전에 검토해 줘`. 푸시 요청으로 PR을 열지 않고, 앞 메시지의 요청은 다음 턴으로 이어지지 않습니다. 드라이런(`--dry-run`, `-n`)은 통과합니다.
+최근 메시지에서 `커밋해 줘`, `푸시해`, `커밋 푸시`, `올려 줘`(커밋과 푸시), `commit it`, `push the changes`, `PR 만들어 줘`, `open a pull request`처럼 직접 요청합니다. 조회·부정·보류 문구는 승인으로 처리하지 않습니다. PR 생성은 현재 턴에서 따로 요청해야 합니다. `--dry-run`과 푸시 전용 축약형 `git push -n`은 통과합니다.
 
 필요한 것과 한계:
 
 - PATH에 Python 3.9 이상(`python3`, `python`, `py` 중 하나)과 `sh`(Git for Windows에 포함)가 있어야 합니다. 실행할 인터프리터가 없으면 가드는 조용히 통과시키지 않고 막은 뒤 이유를 알립니다.
 - 가드는 명령 글자와 저장소 상태만 봅니다. 스크립트 파일 안의 동작, 별칭, 변수에 담긴 값은 보지 못합니다. 그 부분은 호스트 권한과 브랜치 보호 규칙으로 막습니다.
-- Claude Code에서는 세션 기록에서, Codex에서는 `record_prompt`가 저장한 파일에서 최근 메시지를 읽습니다. 둘 다 읽지 못하면 막고 이유를 알립니다.
+- Claude Code에서는 세션 기록의 최근 사용자 메시지를, Codex에서는 현재 턴의 동작 승인 기록을 읽습니다. 해당 기록을 읽지 못하면 차단하고 이유를 알립니다.
 - 훅을 끄려면 플러그인을 끄거나 지워야 하며, 그러면 스킬도 함께 꺼집니다. 사용자 훅으로 막힌 것을 풀 수 없습니다.
 
 훅 시험은 [`tools/hook_tests`](tools/hook_tests)에 있고 `python -m unittest discover -s tools/hook_tests`로 실행합니다. 가짜 JSON 입력과 임시 Git 저장소만 쓰며, 막는 대상 명령은 실행하지 않습니다.

@@ -43,7 +43,7 @@ The plugin installs two hooks that act as mechanical safeguards: commit, push, a
 ### Codex CLI and desktop app
 
 ```sh
-codex plugin marketplace add leejungmin91/engineering-workflow --ref v0.5.0
+codex plugin marketplace add leejungmin91/engineering-workflow --ref main
 codex plugin add engineering-workflow@engineering-workflow
 ```
 
@@ -83,15 +83,15 @@ Installing the plugin registers these hooks in Claude Code and Codex. Codex asks
 | Hook | Event | What it does |
 | --- | --- | --- |
 | `guard_git` | `PreToolUse` on `Bash` and `PowerShell` | Denies `git commit`, `git push`, and PR/MR creation (`gh pr create`, `glab mr create`, push options, HTTP writes to a pulls or merge_requests API) unless the latest user message requests that action. Denies a commit whose added lines, or untracked files named by `git add`, contain a secret. |
-| `record_prompt` | `UserPromptSubmit` | Codex only. Saves the prompt of the current turn under `~/.engineering-workflow/prompts/` so the guard can read it. Files older than seven days are removed. |
+| `record_prompt` | `UserPromptSubmit` | Codex only. Saves the current turn ID and requested Git actions under `~/.engineering-workflow/prompts/`. Each successful save removes files older than seven days. |
 
-A request is the action word plus a request form in the latest message, in Korean or English: `커밋해 줘`, `푸시해`, `커밋 푸시`, `올려 줘` (commit and push), `commit it`, `push the changes`, `PR 만들어 줘`, `open a pull request`. Negated or deferred phrases do not count: `커밋하지 마`, `푸시는 아직`, `don't push yet`, `review before pushing`. A push request does not open a PR, and a request in an earlier message does not carry over. Dry runs (`--dry-run`, `-n`) pass.
+Use a direct request in the latest message, such as `커밋해 줘`, `푸시해`, `커밋 푸시`, `올려 줘` (commit and push), `commit it`, `push the changes`, `PR 만들어 줘`, or `open a pull request`. The guard ignores read-only, negated, and deferred requests. PR creation needs its own request in the current turn. Dry runs pass with `--dry-run` or the push-specific shorthand `git push -n`.
 
 Requirements and limits:
 
 - Python 3.9 or newer on PATH as `python3`, `python`, or `py`, and `sh` (Git for Windows provides it). When no interpreter runs, the guard denies the call and says so rather than failing open.
 - The guard reads command text and repository state only. It cannot see inside scripts, aliases, or variables. Keep host permissions and branch protection for those.
-- In Claude Code the latest message comes from the session transcript; in Codex it comes from `record_prompt`. When neither is readable the guard denies and explains why.
+- Claude Code reads the latest user message from the session transcript. Codex reads the current turn's action record. If the source is unavailable, the guard denies and explains why.
 - To stop the hooks, disable or uninstall the plugin. That also turns off the skill. A user hook cannot override a denial.
 
 The hook tests live in [`tools/hook_tests`](tools/hook_tests) and run with `python -m unittest discover -s tools/hook_tests`. They feed synthetic JSON to the hooks and create throwaway Git repositories; they never run the guarded commands.

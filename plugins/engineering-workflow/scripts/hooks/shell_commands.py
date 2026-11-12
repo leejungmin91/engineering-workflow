@@ -4,6 +4,7 @@ The parser only looks at command text. It cannot see inside scripts or variables
 """
 
 import re
+from pathlib import Path
 
 BOUNDARY_TOKENS = ("&&", "||", "|", ";", "&", "\n", "(", ")")
 GIT_NAME = re.compile(r"(?i)^(?:.*[\\/])?git(?:\.exe)?$")
@@ -21,7 +22,7 @@ ENV_ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 
 
 def segments(command):
-    """Split on &&, ||, |, ;, &, newlines and parentheses outside quotes."""
+    """Split on shell boundaries outside quotes, retaining subshell delimiters."""
     parts, current, quote, i = [], [], None, 0
     while i < len(command):
         ch = command[i]
@@ -56,6 +57,8 @@ def segments(command):
                 break
         if matched:
             parts.append("".join(current))
+            if matched in ("(", ")"):
+                parts.append(matched)
             current = []
             i += len(matched)
             continue
@@ -115,17 +118,17 @@ def git_operation(words):
     words = _strip_leaders(words)
     if not words or not GIT_NAME.match(words[0]):
         return None
-    repo = None
+    repo = Path()
     index = 1
     while index < len(words):
         word = words[index]
         if word in GIT_GLOBAL_WITH_VALUE:
             if word == "-C" and index + 1 < len(words):
-                repo = words[index + 1]
+                repo /= words[index + 1]
             index += 2
             continue
         if word.startswith("-C") and len(word) > 2:
-            repo = word[2:]
+            repo /= word[2:]
             index += 1
             continue
         if word.startswith("-c") and len(word) > 2 and "=" in word:
@@ -205,11 +208,9 @@ def http_pr_write(words):
     return has_body and not forced_get
 
 
-def leading_cd(segments_list):
-    """Path from a leading `cd <path>` segment, if any."""
-    if not segments_list:
-        return None
-    words = _strip_leaders(tokens(segments_list[0]))
+def directory_change(words):
+    """Path from a `cd <path>` segment, if any."""
+    words = _strip_leaders(words)
     if len(words) >= 2 and words[0].lower() in ("cd", "set-location", "pushd", "sl"):
         return words[-1]
     return None

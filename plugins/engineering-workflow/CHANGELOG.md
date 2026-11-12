@@ -8,7 +8,7 @@
 
 - 추가: 플러그인 훅 등록(`hooks/hooks.json`). 설치하면 바로 동작한다.
 - 추가: `guard_git` — 최근 사용자 메시지가 요청하지 않은 커밋·푸시·PR 생성을 막는다(한국어·영어 요청 문구 판정, 부정·보류 표현 제외). 커밋이 더하는 줄과 `git add` 대상 미추적 파일에서 비밀 값을 찾으면 막는다. 명령 위치(`;` `&&` `|` `(` 뒤)의 git만 보고, 대소문자·`.exe`·`-C`·`-c` 옵션을 처리한다. `Bash`와 `PowerShell` 도구 모두 검사한다.
-- 추가: `record_prompt` — Codex에서 턴별 사용자 메시지를 `~/.engineering-workflow/prompts/`에 저장한다(7일 뒤 삭제). 가드는 같은 `turn_id`일 때만 그 메시지를 믿는다.
+- 추가: `record_prompt` — Codex에서 턴 ID와 승인된 동작을 `~/.engineering-workflow/prompts/`에 저장한다. 저장할 때 7일 지난 기록을 정리한다. 가드는 같은 `turn_id`의 기록을 사용한다.
 - 변경: 모든 훅은 stdout JSON `deny`와 종료 코드 0으로 막는다. Codex는 종료 코드 2와 `ask`를 무시하기 때문이다(설계서 4.1 실측).
 - 변경: 실행 래퍼 `scripts/hooks/run.sh`가 `python3`·`python`·`py -3` 중 실제로 도는 것을 고른다. Windows의 Store 스텁 `python3`를 건너뛴다. Python이 없으면 가드는 막힘으로 끝난다.
 - 제거: 선택형 `integrations/hooks/guard_git.py`(첫 git 명령의 `reset --hard`·`clean -fdx`·`push --force`만 종료 코드 2로 막던 훅). 플러그인 훅으로 대체했다. 파괴적 명령 앞에서 묻는 가드는 3단계(`guard_shell`)에서 저장소 상태를 보고 만든다.

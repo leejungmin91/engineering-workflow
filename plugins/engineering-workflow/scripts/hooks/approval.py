@@ -1,88 +1,81 @@
 """Decide whether the latest user message requests commit, push, or PR creation.
 
-The message is split into clauses. An action is approved when some clause names it,
-carries no negation or deferral, and either reads as a request or consists of the
-action words alone. Korean and English are covered.
+Recognize direct requests in Korean and English. Incidental mentions and
+instructions quoted as examples do not grant approval.
 """
 
 import re
 
 ACTIONS = ("commit", "push", "pr")
 
-ACTION_WORDS = {
-    "commit": re.compile(r"커밋|컴밋|commit", re.IGNORECASE),
-    "push": re.compile(r"푸시|푸쉬|push", re.IGNORECASE),
-    "pr": re.compile(
-        r"\bpr\b|\bprs\b|pull[ -]?requests?|풀\s?리퀘(?:스트)?|merge[ -]?requests?|\bmr\b|"
-        r"머지\s?리퀘(?:스트)?|피알",
-        re.IGNORECASE,
-    ),
-}
-# "올려 줘" (upload it) means commit and push together.
-UPLOAD = re.compile(r"올려|올리")
-
 NEGATION = re.compile(
     r"하지\s*(?:마|말)|하지\s*$|말고|말아|않|아직|안\s*해|안\s*하|보류|나중|전에|하기\s*전|"
-    r"\bdon'?t\b|\bdo\s+not\b|\bnot\b|\bnever\b|\bwithout\b|\bbefore\b|\bhold\s+off\b|"
+    r"\bdon['’]?t\b|\bdo\s+not\b|\bnot\b|\bnever\b|\bwithout\b|\bbefore\b|\bhold\s+off\b|"
     r"\bskip\b|\blater\b|\bavoid\b",
     re.IGNORECASE,
 )
 
-REQUEST_MARKER = re.compile(
-    r"해(?:\s*(?:줘|주세요|주시|라|요|야|도|서))?|하(?:자|도록|세요|시고|시오|라|고)|진행|부탁|"
-    r"하기|할게|할래|하면|해도|하는|줘|주세요|주시|만들|생성|열어|열고|보내|띄워|넣어|반영|"
-    r"\bplease\b|\bcreate\b|\bopen\b|\bmake\b|\bsubmit\b|\bsend\b|\braise\b|\bfile\b|"
-    r"\bgo\s+ahead\b|\bit\b|\bthis\b|\bthat\b|\bthe\b|"
-    r"\bthese\b|\bthose\b|\bthem\b|\bnow\b|\ball\b|\beverything\b|\bchanges?\b|\bup\b|\bagain\b",
-    re.IGNORECASE,
-)
-
 CLAUSE_SPLIT = re.compile(
-    r"[.!?\n,;:]+|하고\s*|말고\s*|그리고|그런데|하지만|그러나|\s+and\s+|\s+then\s+|\s+but\s+|\s+however\s+",
+    r"[.!\n;]+|하고\s*|(?<=말고)\s*|그리고|그런데|하지만|그러나|\s+then\s+|\s+but\s+|\s+however\s+",
     re.IGNORECASE,
 )
-FILLER = re.compile(r"[\s\W_]+|좀|도|만|이랑|와|과|및|하고|and|also|both", re.IGNORECASE)
-
-
-def clauses(message):
-    return [part.strip() for part in CLAUSE_SPLIT.split(message) if part and part.strip()]
-
-
-def _only_action_words(clause):
-    stripped = clause
-    for pattern in ACTION_WORDS.values():
-        stripped = pattern.sub(" ", stripped)
-    stripped = UPLOAD.sub(" ", stripped)
-    stripped = FILLER.sub("", stripped)
-    return stripped == ""
-
-
-def _ends_with_action(clause):
-    tail = clause.rstrip(" .!?~")
-    for pattern in ACTION_WORDS.values():
-        for match in pattern.finditer(tail):
-            if match.end() == len(tail):
-                return True
-    return False
+JOINED_REQUESTS = re.compile(r",|(?<!go ahead)\s+and\s+", re.IGNORECASE)
+QUOTED_EXAMPLE = re.compile(r'\x60[^\x60]*\x60|"[^"]*"|“[^”]*”|(?<!\w)‘[^’]*’')
+ACTION_MENTIONS = {
+    "commit": re.compile(r"\bcommit\b|커밋|컴밋|올려", re.IGNORECASE),
+    "push": re.compile(r"\bpush\b|푸시|푸쉬|올려", re.IGNORECASE),
+    "pr": re.compile(r"\b(?:pr|mr|pull[ -]request|merge[ -]request)\b|풀\s?리퀘|머지\s?리퀘|피알", re.IGNORECASE),
+}
+ENGLISH_REQUEST = re.compile(
+    r"(?:please\s+|go ahead and\s+)?(?:git\s+)?(?P<action>commit|push)"
+    r"(?:\s+(?:it|this|that|them|everything|(?:all |the |these |this )?changes?))?"
+    r"(?:\s+(?:now|again|please))?", re.IGNORECASE,
+)
+ENGLISH_PR = re.compile(
+    r"(?:please\s+)?(?:open|create|make|submit|raise|file)\s+(?:(?:a|an|a new|new)\s+)?"
+    r"(?:pr|mr|pull[ -]request|merge[ -]request)(?:\s+(?:now|please))?", re.IGNORECASE,
+)
+KOREAN_GIT = re.compile(
+    r"(?:(?:이거|이걸|변경\s*사항(?:을)?|수정\s*사항(?:을)?)\s*)?"
+    r"(?P<actions>(?:(?:커밋|컴밋|푸시|푸쉬)(?:\s*(?:이랑|와|과|및))?\s*)+)"
+    r"(?:(?:좀\s*)?(?:진행\s*)?(?:해(?:\s*(?:줘|주세요|주시겠어요|요))?|"
+    r"하도록(?:\s*해)?|하세요|하자|부탁(?:해|합니다)?))?"
+)
+KOREAN_PR = re.compile(
+    r"(?:pr|mr|풀\s?리퀘(?:스트)?|머지\s?리퀘(?:스트)?|피알)(?:을|를)?\s*"
+    r"(?:만들어|생성해|열어|띄워)(?:\s*(?:줘|주세요|요))?", re.IGNORECASE,
+)
+KOREAN_UPLOAD = re.compile(r"(?:이거\s*)?올려\s*(?:줘|주세요|요)")
 
 
 def approved_actions(message):
     """Return the set of actions the message requests."""
     approved = set()
+    denied = set()
     if not isinstance(message, str):
         return approved
-    for clause in clauses(message):
-        present = {name for name, pattern in ACTION_WORDS.items() if pattern.search(clause)}
-        upload = bool(UPLOAD.search(clause))
-        if upload:
-            present.update({"commit", "push"})
-        if not present:
-            continue
+    for clause in CLAUSE_SPLIT.split(QUOTED_EXAMPLE.sub(" ", message)):
         if NEGATION.search(clause):
+            denied.update(action for action, pattern in ACTION_MENTIONS.items() if pattern.search(clause))
             continue
-        if REQUEST_MARKER.search(clause) or _only_action_words(clause) or _ends_with_action(clause) or upload:
-            approved.update(present)
-    return approved
+        for request in JOINED_REQUESTS.split(clause):
+            request = request.strip().rstrip("~").strip()
+            english = ENGLISH_REQUEST.fullmatch(request)
+            korean = KOREAN_GIT.fullmatch(request)
+            if english:
+                approved.add(english["action"].lower())
+            elif korean:
+                if re.search(r"커밋|컴밋", korean["actions"]):
+                    approved.add("commit")
+                if re.search(r"푸시|푸쉬", korean["actions"]):
+                    approved.add("push")
+            elif KOREAN_UPLOAD.fullmatch(request):
+                approved.update(("commit", "push"))
+            elif ENGLISH_PR.fullmatch(request) or KOREAN_PR.fullmatch(request):
+                approved.add("pr")
+            else:
+                break
+    return approved - denied
 
 
 GO_AHEAD = re.compile(
