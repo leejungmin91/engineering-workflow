@@ -34,6 +34,8 @@ flowchart TB
 | Task graph | Records prerequisites and determines which steps can run independently. | Confirm the parser contract, update the parser, then check both callers in parallel. |
 | Verification loop | Runs checks against the current change and rechecks the affected cases after a focused fix. | Reproduce a caller failure, fix the cause, and rerun its regression check. |
 
+The task graph selects checks from the final diff. Copy-only and image-only changes get a direct content or display check and skip automated tests unless the project requires them. Mixed changes also run the tests for the affected behavior. [Verification paths](docs/workflow-flow.md)
+
 Independent review checks the diff and evidence when requested or when shared contracts, data, permissions, or deployments change. The final report lists the result, checks run, and open issues. When the host offers model selection, the workflow uses the lightest model suited to each role.
 
 The plugin installs two hooks that act as mechanical safeguards: commit, push, and PR creation run only when the latest user message asks for them, and a commit that would add a secret is denied. See [Hooks](#hooks). Slack and Discord MCP can provide task context and stay optional. See the [skill index guide](plugins/engineering-workflow/skills/engineering-workflow/references/skill-index.md) and [MCP setup](docs/mcp-setup.md).
