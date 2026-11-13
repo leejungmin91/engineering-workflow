@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "engineering-workflow",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Plan dependencies, verify work, report completion evidence, and commit and push finished work automatically.",
   "repository": "https://github.com/leejungmin91/engineering-workflow",
   "license": "MIT",

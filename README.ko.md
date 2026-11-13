@@ -108,6 +108,17 @@ python plugins/engineering-workflow/skills/engineering-workflow/scripts/check_re
 
 [검증 기록 형식](plugins/engineering-workflow/skills/engineering-workflow/references/harness-record.md)
 
+### Codex CLI 사용량 표시
+
+`/statusline`에서 터미널 하단에 표시할 항목을 고를 수 있습니다. 또는 `~/.codex/config.toml`의 기존 `[tui]` 아래에 다음 배열을 넣고 Codex CLI를 다시 실행하세요. [Codex CLI 명령](https://learn.chatgpt.com/docs/developer-commands?surface=cli#configure-footer-items-with-statusline)
+
+```toml
+[tui]
+status_line = ["model-with-reasoning", "context-used", "context-remaining", "context-window-size", "used-tokens", "five-hour-limit", "weekly-limit"]
+```
+
+하단에는 모델과 추론 강도, 컨텍스트 사용률과 용량, 세션 누적 토큰, 제공되는 계정 한도가 표시됩니다. Python 3와 현재 Codex 세션 기록에 접근할 수 있으면 하네스도 최신 수치를 읽어 최종 보고에 넣습니다.
+
 ## 참고한 스킬 10개
 
 플러그인이 제공하는 스킬은 `engineering-workflow` 하나입니다. 아래 스킬에서 가져온 작업 방식을 이 스킬에 반영했습니다.

@@ -108,6 +108,17 @@ python plugins/engineering-workflow/skills/engineering-workflow/scripts/check_re
 
 The example reports a failed regression, stale lint evidence, and a pending UI check. See the [record format](plugins/engineering-workflow/skills/engineering-workflow/references/harness-record.md).
 
+### Codex CLI usage display
+
+Run `/statusline` to choose fields for your terminal footer, or set this array under the existing `[tui]` section in `~/.codex/config.toml` and reopen Codex CLI. [Codex CLI commands](https://learn.chatgpt.com/docs/developer-commands?surface=cli#configure-footer-items-with-statusline)
+
+```toml
+[tui]
+status_line = ["model-with-reasoning", "context-used", "context-remaining", "context-window-size", "used-tokens", "five-hour-limit", "weekly-limit"]
+```
+
+The footer shows the model and reasoning level, context usage and capacity, cumulative session tokens, and available account limits. The engineering workflow also reads the latest local usage snapshot for its final report when Python 3 and the current Codex session log are available.
+
 ## Source skills
 
 The plugin ships one skill, `engineering-workflow`. Its workflow adapts techniques from these ten source skills.
