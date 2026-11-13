@@ -23,7 +23,7 @@ flowchart TD
     Findings -->|수정 필요| Change
     Findings -->|현재 작업본 검토 완료| Report
     Fallback -->|새 세션 사용 불가| Pending
-    Hook["PreToolUse 가드<br/>요청 없는 커밋·푸시·PR, 비밀 값 차단"] -. 실행 직전 .-> Change
+    Report -. 턴 종료 .-> Hook["Stop 훅<br/>남은 변경을 커밋·푸시"]
     Context["Slack · Discord<br/>필요한 자료만 연결"] -. 참고 .-> Start
 ```
 

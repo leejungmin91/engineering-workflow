@@ -1,25 +1,14 @@
 {
-  "description": "Engineering Workflow hooks check Git approvals and scan commits for secrets. Codex stores the approved actions for each turn.",
+  "description": "Engineering Workflow hooks commit and push the work left in the repository when the assistant finishes a turn.",
   "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash|PowerShell",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/run.sh\" guard_git",
-            "timeout": 20
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
+    "Stop": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/run.sh\" record_prompt",
-            "timeout": 5
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/auto_commit_push.sh\"",
+            "timeout": 120,
+            "statusMessage": "Committing and pushing changes..."
           }
         ]
       }

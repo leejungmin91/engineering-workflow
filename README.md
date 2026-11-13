@@ -38,7 +38,7 @@ The task graph selects checks from the final diff. Copy-only and image-only chan
 
 Independent review checks the diff and evidence when requested or when shared contracts, data, permissions, or deployments change. The final report lists the result, checks run, and open issues. When the host offers model selection, the workflow uses the lightest model suited to each role.
 
-The plugin installs two hooks that act as mechanical safeguards: commit, push, and PR creation run only when the latest user message asks for them, and a commit that would add a secret is denied. See [Hooks](#hooks). Slack and Discord MCP can provide task context and stay optional. See the [skill index guide](plugins/engineering-workflow/skills/engineering-workflow/references/skill-index.md) and [MCP setup](docs/mcp-setup.md).
+The plugin installs one hook: when the assistant finishes a turn, the work left in the repository is committed and pushed. This harness is for personal projects, so finished work is never held back waiting for a commit request. See [Hooks](#hooks). Slack and Discord MCP can provide task context and stay optional. See the [skill index guide](plugins/engineering-workflow/skills/engineering-workflow/references/skill-index.md) and [MCP setup](docs/mcp-setup.md).
 
 ## Install
 
@@ -80,23 +80,21 @@ Copy the entire [engineering-workflow skill directory](plugins/engineering-workf
 
 ## Hooks
 
-Installing the plugin registers these hooks in Claude Code and Codex. Codex asks you to trust plugin hooks once; until you do, they do not run.
+Installing the plugin registers this hook in Claude Code. Codex asks you to trust plugin hooks once; until you do, they do not run, and check that your Codex version fires `Stop` before relying on it there.
 
 | Hook | Event | What it does |
 | --- | --- | --- |
-| `guard_git` | `PreToolUse` on `Bash` and `PowerShell` | Denies `git commit`, `git push`, and PR/MR creation (`gh pr create`, `glab mr create`, push options, HTTP writes to a pulls or merge_requests API) unless the latest user message requests that action. Denies a commit whose added lines, or untracked files named by `git add`, contain a secret. |
-| `record_prompt` | `UserPromptSubmit` | Codex only. Saves the current turn ID and requested Git actions under `~/.engineering-workflow/prompts/`. Each successful save removes files older than seven days. |
+| `auto_commit_push` | `Stop` | When the assistant finishes a turn, runs `git add -A`, commits with the subject `Update <top-level paths>` and a file list in the body, and pushes to the tracked upstream (`-u origin <branch>` when the branch has none). A clean tree produces no commit. |
 
-Use a direct request in the latest message, such as `커밋해 줘`, `푸시해`, `커밋 푸시`, `올려 줘` (commit and push), `commit it`, `push the changes`, `PR 만들어 줘`, or `open a pull request`. The guard ignores read-only, negated, and deferred requests. PR creation needs its own request in the current turn. Dry runs pass with `--dry-run` or the push-specific shorthand `git push -n`.
+The hook is a convenience for personal projects, not a safeguard. Write a hand-written commit yourself when the work deserves one; the hook then finds nothing to commit. It never blocks the turn: failures are shown as a message and the exit code stays 0. `AUTO_COMMIT_TRAILER` replaces the default `Co-Authored-By` trailer, and `--dry-run` prints the plan without changing anything.
 
 Requirements and limits:
 
-- Python 3.9 or newer on PATH as `python3`, `python`, or `py`, and `sh` (Git for Windows provides it). When no interpreter runs, the guard denies the call and says so rather than failing open.
-- The guard reads command text and repository state only. It cannot see inside scripts, aliases, or variables. Keep host permissions and branch protection for those.
-- Claude Code reads the latest user message from the session transcript. Codex reads the current turn's action record. If the source is unavailable, the guard denies and explains why.
-- To stop the hooks, disable or uninstall the plugin. That also turns off the skill. A user hook cannot override a denial.
+- POSIX `sh` and `git` on PATH (Git for Windows provides both). No Python is needed for the hook.
+- Everything not ignored by `.gitignore` is committed, including half-finished edits left at the end of a turn. Secrets are not scanned; keep `.gitignore`, host permissions, and branch protection for that.
+- To stop the hook, disable or uninstall the plugin. That also turns off the skill.
 
-The hook tests live in [`tools/hook_tests`](tools/hook_tests) and run with `python -m unittest discover -s tools/hook_tests`. They feed synthetic JSON to the hooks and create throwaway Git repositories; they never run the guarded commands.
+The hook tests live in [`tools/hook_tests`](tools/hook_tests) and run with `python -m unittest discover -s tools/hook_tests`. They create throwaway Git repositories with a bare remote and run the hook against them.
 
 ## Use
 

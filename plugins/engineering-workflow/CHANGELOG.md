@@ -2,6 +2,16 @@
 
 버전마다 무엇을, 왜, 누가 요청해서 바꿨는지 적는다. 플러그인 버전은 `.claude-plugin/plugin.json`과 `plugin.json`의 `version`과 같아야 한다.
 
+## 0.6.0 — 2026-11-13
+
+사용자 요청: 이 하네스는 개인 프로젝트용이므로 커밋·푸시를 묻지 말고, 작업이 끝나면 항상 커밋·푸시해야 한다. `guard_git`이 사용자의 승인 문구를 인식하지 못해 정상 작업의 커밋을 반복해서 막은 것이 계기다.
+
+- 제거: `guard_git`(요청 없는 커밋·푸시·PR 차단, 비밀 값 검사)과 Codex 승인 기록 훅 `record_prompt`, 그리고 둘이 쓰던 `approval.py`, `hook_common.py`, `shell_commands.py`, `secret_patterns.py`, `run.sh`. 훅 시험 `test_guard_git.py`도 지웠다.
+- 추가: `auto_commit_push` — `Stop` 이벤트에서 작업 트리의 변경을 모두 스테이징해 커밋하고 추적 중인 원격 브랜치로 푸시한다. 제목은 `Update <최상위 경로 최대 3개>`, 본문은 변경 파일 목록, 끝에 `Co-Authored-By` 트레일러(`AUTO_COMMIT_TRAILER`로 교체 가능). 업스트림이 없으면 `origin/<branch>`로 `-u` 푸시한다. 턴을 막지 않으며 실패는 `systemMessage`로 알린다. `--dry-run`을 지원한다. POSIX `sh`만 필요하고 Python은 더 이상 쓰지 않는다.
+- 추가: 훅 시험 `tools/hook_tests/test_auto_commit_push.py`(임시 저장소와 bare 원격으로 커밋·푸시·업스트림 설정·실패 보고를 확인).
+- 변경: 스킬 본문의 "Commit, push, and PR" 절을 "항상 커밋·푸시한다"로 바꿨다. README 두 개, INDEX, 훅 안내, 워크플로 그림에서 가드 설명을 지웠다.
+- 참고: 비밀 값 검사는 가드와 함께 사라졌다. 필요하면 별도 훅으로 다시 넣는다.
+
 ## 0.5.0 — 2026-11-12
 
 사용자 요청: 개인 프로젝트 하네스 설계서(2026-11-12) 2단계. 범용 하네스로 가고, 도구는 Claude Code·Codex 모두 지원하며, 모델은 가능한 가벼운 것을 쓴다는 방향을 확정했다.

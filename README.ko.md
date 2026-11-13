@@ -40,7 +40,7 @@ flowchart TB
 
 요청이 있거나 공용 계약, 데이터, 권한, 배포에 영향이 있으면 교차검토로 최종 변경과 검증 근거를 확인합니다. 마지막 보고에는 결과, 실행한 검사, 남은 문제가 들어갑니다. 모델 선택이 가능한 도구에서는 역할마다 해당 작업을 감당할 수 있는 가장 가벼운 모델을 사용합니다.
 
-플러그인을 설치하면 기계적 안전장치인 훅 두 개가 함께 등록됩니다. 커밋·푸시·PR 생성은 최근 사용자 메시지가 요청했을 때만 실행되고, 비밀 값이 들어가는 커밋은 막힙니다. [훅](#훅) 절을 보세요. Slack·Discord MCP는 필요할 때 관련 맥락을 읽는 선택 사항입니다. [스킬 인덱스 안내](plugins/engineering-workflow/skills/engineering-workflow/references/skill-index.md) · [MCP 연동](docs/mcp-setup.md)
+플러그인을 설치하면 훅 하나가 함께 등록됩니다. 어시스턴트가 턴을 마치면 저장소에 남은 변경을 커밋하고 푸시합니다. 이 하네스는 개인 프로젝트용이라, 끝난 작업을 커밋 요청이 올 때까지 붙들어 두지 않습니다. [훅](#훅) 절을 보세요. Slack·Discord MCP는 필요할 때 관련 맥락을 읽는 선택 사항입니다. [스킬 인덱스 안내](plugins/engineering-workflow/skills/engineering-workflow/references/skill-index.md) · [MCP 연동](docs/mcp-setup.md)
 
 ## 설치
 
@@ -80,23 +80,21 @@ claude plugin install engineering-workflow@engineering-workflow
 
 ## 훅
 
-플러그인을 설치하면 Claude Code와 Codex에 아래 훅이 등록됩니다. Codex는 플러그인 훅을 한 번 신뢰로 승인해야 하며, 승인 전에는 돌지 않습니다.
+플러그인을 설치하면 Claude Code에 아래 훅이 등록됩니다. Codex는 플러그인 훅을 한 번 신뢰로 승인해야 하며, 승인 전에는 돌지 않습니다. Codex에서 쓰려면 사용 중인 버전이 `Stop` 이벤트를 내는지 먼저 확인하세요.
 
 | 훅 | 이벤트 | 동작 |
 | --- | --- | --- |
-| `guard_git` | `Bash`·`PowerShell` 도구의 `PreToolUse` | 최근 사용자 메시지가 요청하지 않은 `git commit`, `git push`, PR/MR 생성(`gh pr create`, `glab mr create`, 푸시 옵션, pulls·merge_requests API에 쓰기 요청)을 막습니다. 커밋이 더하는 줄이나 `git add` 대상 미추적 파일에 비밀 값이 있으면 막습니다. |
-| `record_prompt` | `UserPromptSubmit` | Codex 전용. 현재 턴 ID와 요청된 Git 동작을 `~/.engineering-workflow/prompts/`에 저장합니다. 새 기록을 저장할 때 7일이 지난 파일을 지웁니다. |
+| `auto_commit_push` | `Stop` | 어시스턴트가 턴을 마치면 `git add -A`로 변경을 모두 스테이징하고, `Update <최상위 경로>` 제목과 변경 파일 목록 본문으로 커밋한 뒤 추적 중인 원격 브랜치로 푸시합니다. 업스트림이 없으면 `-u origin <branch>`로 푸시합니다. 변경이 없으면 커밋하지 않습니다. |
 
-최근 메시지에서 `커밋해 줘`, `푸시해`, `커밋 푸시`, `올려 줘`(커밋과 푸시), `commit it`, `push the changes`, `PR 만들어 줘`, `open a pull request`처럼 직접 요청합니다. 조회·부정·보류 문구는 승인으로 처리하지 않습니다. PR 생성은 현재 턴에서 따로 요청해야 합니다. `--dry-run`과 푸시 전용 축약형 `git push -n`은 통과합니다.
+이 훅은 안전장치가 아니라 개인 프로젝트용 편의 장치입니다. 의미 있는 커밋 메시지가 필요한 작업은 직접 커밋하면 되고, 그러면 훅은 커밋할 것이 없어 아무 일도 하지 않습니다. 턴을 막는 일은 없으며, 실패하면 메시지로 알리고 종료 코드는 0을 유지합니다. `AUTO_COMMIT_TRAILER` 환경 변수로 기본 `Co-Authored-By` 트레일러를 바꿀 수 있고, `--dry-run`은 계획만 출력합니다.
 
 필요한 것과 한계:
 
-- PATH에 Python 3.9 이상(`python3`, `python`, `py` 중 하나)과 `sh`(Git for Windows에 포함)가 있어야 합니다. 실행할 인터프리터가 없으면 가드는 조용히 통과시키지 않고 막은 뒤 이유를 알립니다.
-- 가드는 명령 글자와 저장소 상태만 봅니다. 스크립트 파일 안의 동작, 별칭, 변수에 담긴 값은 보지 못합니다. 그 부분은 호스트 권한과 브랜치 보호 규칙으로 막습니다.
-- Claude Code에서는 세션 기록의 최근 사용자 메시지를, Codex에서는 현재 턴의 동작 승인 기록을 읽습니다. 해당 기록을 읽지 못하면 차단하고 이유를 알립니다.
-- 훅을 끄려면 플러그인을 끄거나 지워야 하며, 그러면 스킬도 함께 꺼집니다. 사용자 훅으로 막힌 것을 풀 수 없습니다.
+- PATH에 POSIX `sh`와 `git`이 있어야 합니다(Git for Windows에 둘 다 포함). 훅에는 Python이 필요하지 않습니다.
+- `.gitignore`가 제외하지 않은 것은 턴 끝에 남은 미완성 수정까지 모두 커밋됩니다. 비밀 값은 검사하지 않으므로 `.gitignore`, 호스트 권한, 브랜치 보호 규칙으로 막습니다.
+- 훅을 끄려면 플러그인을 끄거나 지워야 하며, 그러면 스킬도 함께 꺼집니다.
 
-훅 시험은 [`tools/hook_tests`](tools/hook_tests)에 있고 `python -m unittest discover -s tools/hook_tests`로 실행합니다. 가짜 JSON 입력과 임시 Git 저장소만 쓰며, 막는 대상 명령은 실행하지 않습니다.
+훅 시험은 [`tools/hook_tests`](tools/hook_tests)에 있고 `python -m unittest discover -s tools/hook_tests`로 실행합니다. 임시 Git 저장소와 bare 원격을 만들어 훅을 실제로 돌려 봅니다.
 
 ## 사용 예시
 

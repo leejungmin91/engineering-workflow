@@ -1,6 +1,6 @@
 # 선택형 스킬 색인 훅
 
-커밋·푸시·PR 가드와 Codex 승인 기록 훅은 플러그인에 포함되어 있다. 범위와 한계는 [훅 안내](../../plugins/engineering-workflow/skills/engineering-workflow/references/hook-recommendations.md)를 본다. 이 폴더에는 선택형 스킬 색인 훅의 설정 예제만 남긴다.
+턴이 끝나면 남은 변경을 커밋·푸시하는 `Stop` 훅은 플러그인에 포함되어 있다. 동작과 한계는 [훅 안내](../../plugins/engineering-workflow/skills/engineering-workflow/references/hook-recommendations.md)를 본다. 이 폴더에는 선택형 스킬 색인 훅의 설정 예제만 남긴다.
 
 ## 스킬 색인 훅
 
