@@ -1,20 +1,20 @@
 # Hooks
 
-The plugin registers one hook on installation (`hooks/hooks.json`). It is a convenience for personal projects, not a safeguard: the harness assumes that finished work is always committed and pushed.
+The plugin registers one hook on installation (`hooks/hooks.json`). The harness commits and pushes finished work on personal projects.
 
 | Hook | Event | Purpose |
 | --- | --- | --- |
-| `auto_commit_push` | `Stop` | When the assistant finishes a turn, stage every change in the repository, commit it, and push to the tracked upstream. |
+| `auto_commit_push` | `Stop` | At the end of a turn, commit remaining changes and push local commits. |
 
 How the hook behaves:
 
-- It runs `git add -A`, so `.gitignore` decides what is excluded. When the tree is clean it exits without output.
+- It runs `git add -A`, so `.gitignore` excludes ignored untracked files. A clean worktree can still have local commits to push.
 - The commit subject is `Update <up to three top-level paths>` with `(+N more)` when there are more; dotfiles sort last. The body lists the changed files (`git diff --cached --name-status`) and ends with a `Co-Authored-By` trailer. `AUTO_COMMIT_TRAILER` replaces the trailer.
-- It pushes to the branch's upstream. A branch without an upstream is pushed with `-u origin <branch>` when a remote named `origin` exists.
-- It never blocks the turn. Commit or push failures are reported as a `systemMessage` and the exit code stays 0. `--dry-run` prints the plan and leaves the index untouched.
+- A branch with an upstream uses the repository's Git push configuration. A branch without an upstream is pushed to the same branch on `origin` when that remote exists.
+- Staging, commit, and push failures appear as a `systemMessage`. A later Stop retries a failed push while the commits are still local. `--dry-run` previews the commit using a temporary index.
 - The repository is `CLAUDE_PROJECT_DIR` when the host sets it, otherwise the current directory. A directory that is not a Git work tree is skipped.
 
-Known limits: the hook commits whatever the turn left behind, so a half-finished edit at the end of a turn is committed too. Write a hand-written commit yourself when the work deserves one; the hook then finds a clean tree and does nothing. Secrets are not scanned; keep host permissions, `.gitignore`, and branch protection for that. Claude Code fires `Stop`; check your Codex version's hook events before relying on it there.
+The hook includes unfinished and unrelated changes left in the worktree. Keep the worktree dedicated to the current task. Codex requires the user to review and trust the bundled Stop hook after installation or a change to the hook.
 
 ## Optional skill discovery hook
 

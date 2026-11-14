@@ -80,13 +80,13 @@ claude plugin install engineering-workflow@engineering-workflow
 
 ## 훅
 
-플러그인을 설치하면 Claude Code에 아래 훅이 등록됩니다. Codex는 플러그인 훅을 한 번 신뢰로 승인해야 하며, 승인 전에는 돌지 않습니다. Codex에서 쓰려면 사용 중인 버전이 `Stop` 이벤트를 내는지 먼저 확인하세요.
+플러그인은 Claude Code와 Codex에 `Stop` 훅을 제공합니다. Codex CLI에서는 `/hooks`, 데스크톱 앱에서는 **설정 → Hooks**에서 훅을 검토하고 신뢰를 승인합니다. [Codex 훅 승인 안내](https://learn.chatgpt.com/docs/hooks#review-and-trust-hooks)
 
 | 훅 | 이벤트 | 동작 |
 | --- | --- | --- |
-| `auto_commit_push` | `Stop` | 어시스턴트가 턴을 마치면 `git add -A`로 변경을 모두 스테이징하고, `Update <최상위 경로>` 제목과 변경 파일 목록 본문으로 커밋한 뒤 추적 중인 원격 브랜치로 푸시합니다. 업스트림이 없으면 `-u origin <branch>`로 푸시합니다. 변경이 없으면 커밋하지 않습니다. |
+| `auto_commit_push` | `Stop` | 어시스턴트가 턴을 마치면 `git add -A`로 남은 변경을 스테이징하고 `Update <최상위 경로>` 제목으로 커밋합니다. 로컬 커밋은 저장소의 Git 설정에 따라 푸시합니다. 업스트림이 없고 `origin`이 있으면 같은 이름의 원격 브랜치로 푸시합니다. |
 
-이 훅은 안전장치가 아니라 개인 프로젝트용 편의 장치입니다. 의미 있는 커밋 메시지가 필요한 작업은 직접 커밋하면 되고, 그러면 훅은 커밋할 것이 없어 아무 일도 하지 않습니다. 턴을 막는 일은 없으며, 실패하면 메시지로 알리고 종료 코드는 0을 유지합니다. `AUTO_COMMIT_TRAILER` 환경 변수로 기본 `Co-Authored-By` 트레일러를 바꿀 수 있고, `--dry-run`은 계획만 출력합니다.
+작업 트리가 깨끗해도 직접 만든 로컬 커밋을 푸시합니다. 실패는 메시지로 알리며, 커밋이 로컬에 남아 있으면 다음 턴 종료 시 푸시를 재시도합니다. `AUTO_COMMIT_TRAILER`로 `Co-Authored-By` 트레일러를 바꾸고, `--dry-run`으로 임시 Git 인덱스를 사용해 커밋을 미리 볼 수 있습니다.
 
 필요한 것과 한계:
 

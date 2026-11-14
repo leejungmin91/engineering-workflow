@@ -16,7 +16,7 @@
 
 | 훅 | 이벤트 | 동작 |
 | --- | --- | --- |
-| `auto_commit_push` | `Stop` | 턴이 끝나면 작업 트리의 변경을 모두 커밋하고 추적 중인 원격 브랜치로 푸시한다. 변경이 없으면 아무 일도 하지 않는다 |
+| `auto_commit_push` | `Stop` | 턴이 끝나면 남은 변경을 커밋하고 Git의 푸시 설정에 따라 로컬 커밋을 푸시한다. |
 
 이 훅은 안전장치가 아니라 개인 프로젝트용 편의 장치다. 작업이 끝나면 항상 커밋·푸시한다는 전제를 기계적으로 보장한다. 자세한 동작과 한계는 `skills/engineering-workflow/references/hook-recommendations.md`에 있다.
 

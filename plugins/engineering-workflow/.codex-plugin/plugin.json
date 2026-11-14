@@ -1,0 +1,14 @@
+{
+  "name": "engineering-workflow",
+  "version": "0.6.3",
+  "description": "Plan dependencies, verify work, report completion evidence, and commit and push finished work automatically.",
+  "repository": "https://github.com/leejungmin91/engineering-workflow",
+  "license": "MIT",
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks.json",
+  "interface": {
+    "displayName": "Engineering Workflow",
+    "shortDescription": "Plan dependencies and verify engineering work.",
+    "category": "Developer Tools"
+  }
+}

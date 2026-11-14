@@ -42,7 +42,7 @@ Use project instructions, established tools, and the permissions already granted
 
 ## Commit and push
 
-- This harness is for personal projects: finished work is always committed and pushed without a separate request. Commit with a hand-written message when the work deserves one; otherwise leave the changes and the plugin's `auto_commit_push` Stop hook commits and pushes them when the turn ends.
+- Commit and push finished work without a separate request. Commit only the task's changes and verify the remote branch before reporting success. The plugin's `auto_commit_push` Stop hook commits remaining changes and pushes local commits when the turn ends.
 - Opening a PR or MR still needs an explicit request in the current message, and a push request does not open one.
 
 See [source techniques](references/source-skills.md) for the ten source skills and [hooks](references/hook-recommendations.md) for what the installed hooks check.

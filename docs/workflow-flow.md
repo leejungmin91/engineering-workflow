@@ -55,7 +55,7 @@ flowchart TD
 
 ## 훅과 보고서
 
-0.5.0부터 플러그인은 훅 **두 개**를 설치와 함께 등록한다. `PreToolUse` 가드는 최근 사용자 메시지가 요청하지 않은 커밋·푸시·PR 생성과 비밀 값이 들어가는 커밋을 막고, `UserPromptSubmit` 기록 훅은 Codex의 턴별 메시지를 저장한다. 0.3.0의 선택형 훅(첫 Git 명령의 `reset --hard`·`clean -fdx`·`push --force` 차단)은 이것으로 대체했다. 보고서와 검토는 스킬의 작업 단계에서 관리한다. [훅 범위](../plugins/engineering-workflow/skills/engineering-workflow/references/hook-recommendations.md)
+플러그인은 `Stop` 훅 하나를 등록한다. 턴이 끝나면 남은 변경을 커밋하고, 직접 만든 커밋까지 포함해 로컬 커밋을 푸시한다. 보고서와 검토는 스킬의 작업 단계에서 관리한다. [훅 범위](../plugins/engineering-workflow/skills/engineering-workflow/references/hook-recommendations.md)
 
 | 보고서 | 작성 시점 | 적용 방법 |
 | --- | --- | --- |

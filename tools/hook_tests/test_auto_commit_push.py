@@ -88,6 +88,38 @@ class AutoCommitPushTest(unittest.TestCase):
         self.assertIn("and pushed", result.stdout)
         self.assertEqual(self.remote_rev("feature"), git(self.repo, "rev-parse", "HEAD").strip())
 
+    def test_dry_run_preserves_staged_content(self):
+        path = self.repo / "README.md"
+        path.write_text("staged\n", encoding="utf-8")
+        git(self.repo, "add", "README.md")
+        path.write_text("unstaged\n", encoding="utf-8")
+        status = git(self.repo, "status", "--porcelain")
+        result = self.run_hook("--dry-run")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("would commit 1 file", result.stdout)
+        self.assertEqual(git(self.repo, "status", "--porcelain"), status)
+        self.assertEqual(git(self.repo, "show", ":README.md"), "staged\n")
+
+    def test_pushes_existing_commit_with_clean_tree(self):
+        git(self.repo, "commit", "--allow-empty", "-m", "Hand-written commit")
+        head = git(self.repo, "rev-parse", "HEAD").strip()
+        result = self.run_hook()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("pushed", result.stdout)
+        self.assertEqual(self.remote_rev("main"), head)
+        self.assertEqual(git(self.repo, "rev-parse", "HEAD").strip(), head)
+        self.assertEqual(self.run_hook().stdout, "")
+
+    def test_pushes_existing_commit_on_branch_without_upstream(self):
+        git(self.repo, "checkout", "-q", "-b", "feature")
+        git(self.repo, "commit", "--allow-empty", "-m", "Hand-written commit")
+        head = git(self.repo, "rev-parse", "HEAD").strip()
+        result = self.run_hook()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("pushed", result.stdout)
+        self.assertEqual(self.remote_rev("feature"), head)
+        self.assertEqual(git(self.repo, "rev-parse", "@{upstream}").strip(), head)
+
     def test_push_failure_is_reported_not_fatal(self):
         git(self.repo, "remote", "set-url", "origin", str(self.tmp / "missing.git"))
         (self.repo / "note.txt").write_text("n\n", encoding="utf-8")
@@ -95,6 +127,14 @@ class AutoCommitPushTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("push failed", result.stdout)
         self.assertEqual(git(self.repo, "status", "--porcelain"), "")
+
+        git(self.repo, "remote", "set-url", "origin", str(self.remote))
+        head = git(self.repo, "rev-parse", "HEAD").strip()
+        retry = self.run_hook()
+        self.assertEqual(retry.returncode, 0, retry.stderr)
+        self.assertIn("pushed", retry.stdout)
+        self.assertEqual(self.remote_rev("main"), head)
+        self.assertEqual(git(self.repo, "rev-parse", "HEAD").strip(), head)
 
 
 if __name__ == "__main__":

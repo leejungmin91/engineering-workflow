@@ -80,13 +80,13 @@ Copy the entire [engineering-workflow skill directory](plugins/engineering-workf
 
 ## Hooks
 
-Installing the plugin registers this hook in Claude Code. Codex asks you to trust plugin hooks once; until you do, they do not run, and check that your Codex version fires `Stop` before relying on it there.
+The plugin bundles a `Stop` hook for Claude Code and Codex. In Codex, review and trust it with `/hooks` in the CLI or **Settings → Hooks** in the desktop app. [Codex hook trust](https://learn.chatgpt.com/docs/hooks#review-and-trust-hooks)
 
 | Hook | Event | What it does |
 | --- | --- | --- |
-| `auto_commit_push` | `Stop` | When the assistant finishes a turn, runs `git add -A`, commits with the subject `Update <top-level paths>` and a file list in the body, and pushes to the tracked upstream (`-u origin <branch>` when the branch has none). A clean tree produces no commit. |
+| `auto_commit_push` | `Stop` | When the assistant finishes a turn, stages remaining changes with `git add -A`, commits with the subject `Update <top-level paths>`, and pushes local commits using the repository's Git configuration. A branch without an upstream is pushed to the same branch on `origin` when that remote exists. |
 
-The hook is a convenience for personal projects, not a safeguard. Write a hand-written commit yourself when the work deserves one; the hook then finds nothing to commit. It never blocks the turn: failures are shown as a message and the exit code stays 0. `AUTO_COMMIT_TRAILER` replaces the default `Co-Authored-By` trailer, and `--dry-run` prints the plan without changing anything.
+The hook also pushes hand-written commits when the worktree is clean. Failures appear as a message, and a later turn retries a failed push while the commits are still local. Set `AUTO_COMMIT_TRAILER` to supply a custom `Co-Authored-By` trailer. Use `--dry-run` to preview a commit with a temporary Git index.
 
 Requirements and limits:
 

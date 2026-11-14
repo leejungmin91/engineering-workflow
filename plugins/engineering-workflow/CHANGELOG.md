@@ -1,6 +1,12 @@
 # 변경 이력
 
-버전마다 무엇을, 왜, 누가 요청해서 바꿨는지 적는다. 플러그인 버전은 `.claude-plugin/plugin.json`과 `plugin.json`의 `version`과 같아야 한다.
+Keep the version in `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json` in sync.
+
+## 0.6.3 — 2026-11-14
+
+- Register the Stop hook through the Codex compatibility manifest so Codex builds that skip hooks in the portable manifest can discover it.
+- Push existing local commits at Stop, including hand-written commits and commits left behind by a failed push. Preserve the live Git index in dry-run mode.
+- Update the workflow guide to describe the installed Stop hook.
 
 ## 0.6.2 — 2026-11-14
 
