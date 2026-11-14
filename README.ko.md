@@ -123,7 +123,7 @@ status_line = ["model-with-reasoning", "context-used", "context-remaining", "con
 
 #### Claude Code
 
-[`integrations/statusline/claude-usage.sh`](integrations/statusline/README.md)는 하단에 모델, 컨텍스트 사용 바(사용 토큰과 용량), 5시간·7일 계정 한도와 초기화 시각을 표시합니다. 이 파일을 `~/.claude/statusline-usage.sh`로 복사하고 `~/.claude/settings.json`에 `statusLine` 명령을 추가하세요. 플러그인은 상태 줄을 설정할 수 없어 한 번은 직접 설치해야 합니다. `sh`와 `jq`가 필요합니다.
+[`integrations/statusline/claude-usage.sh`](integrations/statusline/README.md)는 대화 컨텍스트, 전체 계정 한도(`All · 5h` / `All · 7d`), 페이블 등 모델별 주간 한도(`Fable · 7d`)를 줄별로 구분합니다. 바에는 사용률·남은 비율, 컨텍스트의 사용 토큰·용량, 계정 한도의 초기화 시각이 표시됩니다. 모델별 한도는 Claude Code의 로컬 사용량 캐시에서 읽어 갱신 후 경과 시간을 함께 보여 주며, 값이 없으면 확인 불가로 표시합니다. 파일을 `~/.claude/statusline-usage.sh`로 복사하고(기존 설치를 갱신할 때도 다시 복사), `~/.claude/settings.json`에 `statusLine` 명령을 추가하세요. 플러그인은 상태 줄을 설정할 수 없어 설정은 한 번 직접 추가해야 합니다. `sh`와 `jq`가 필요합니다.
 
 ```json
 "statusLine": { "type": "command", "command": "sh ~/.claude/statusline-usage.sh", "padding": 0 }

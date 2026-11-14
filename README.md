@@ -123,7 +123,7 @@ The footer shows the model and reasoning level, context usage and capacity, cumu
 
 #### Claude Code
 
-[`integrations/statusline/claude-usage.sh`](integrations/statusline/README.md) draws the model, a context window bar with occupied tokens and capacity, and the 5-hour and 7-day account limits with reset times. Copy it to `~/.claude/statusline-usage.sh` and add a `statusLine` command to `~/.claude/settings.json`. A plugin cannot set the status line, so this is a one-time manual step. The script needs `sh` and `jq`.
+[`integrations/statusline/claude-usage.sh`](integrations/statusline/README.md) separates conversation context, account limits (`All · 5h` / `All · 7d`), and model-specific weekly limits such as `Fable · 7d` into readable rows. Bars show used and remaining percentages, token capacity for context, and reset times for limits. Model limits come from Claude Code's local usage cache and show its age; unavailable values are explicit. Copy it to `~/.claude/statusline-usage.sh` (repeat the copy to update an existing installation) and add a `statusLine` command to `~/.claude/settings.json`. A plugin cannot set the status line, so this is a one-time settings step. The script needs `sh` and `jq`.
 
 ```json
 "statusLine": { "type": "command", "command": "sh ~/.claude/statusline-usage.sh", "padding": 0 }

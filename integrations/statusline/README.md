@@ -1,15 +1,22 @@
 # Claude Code usage status line
 
-`claude-usage.sh` draws a one-line footer for Claude Code from the JSON the host passes to a status line command:
+`claude-usage.sh` draws separate rows for conversation context, account limits, and model-specific weekly limits:
 
 ```
-Opus 5.5 │ ctx ███░░░░░░░ 32% (64k/200k) │ 5h █████░░░ 63% ↻18:53 │ 7d ███████░ 88% ↻11/18 20:06
+Fable 5 │ Context ███░░░░░░░ 32% used · 68% left · 320k/1.0M
+All · 5h    ██████░░░░ 63% used · 37% left · reset 18:53
+All · 7d    ████░░░░░░ 44% used · 56% left · reset 11/16 13:00
+Fable · 7d  ████████░░ 75% used · 25% left · reset 11/16 13:00 · cached 3m
 ```
 
-- `ctx` is the conversation context window: used percentage, occupied tokens, and capacity. When the host omits the percentage, the script computes it from `current_usage`.
-- `5h` and `7d` are account usage windows with their reset times. They appear only when the host sends `rate_limits`.
+- `Context` is the conversation context window: used and remaining percentages, occupied tokens, and capacity. When the host omits the percentage, the script computes it from `current_usage`.
+- `All · 5h` and `All · 7d` are account usage windows, independent of the current model. Host `rate_limits` values take precedence over cached account values. Missing windows are omitted.
+- `Fable · 7d` (or another model name) is that model's own weekly allowance. It has a different denominator from the account limit; the two percentages must not be substituted for each other.
+- Claude Code currently passes only account windows to status line scripts. Model rows come from `cachedUsageUtilization.utilization.limits` in `~/.claude.json` (or `$CLAUDE_CONFIG_DIR/.claude.json`). The script checks the cache's account ID against the signed-in account, reads only local metadata, and makes no network or credential requests. This cache schema is internal to Claude Code and can change.
+- `cached 3m` means the snapshot was fetched three minutes ago. It is not a live measurement; run `/usage` in Claude Code to refresh its cache. Expired model windows show `— unavailable`. Fable sessions also show an unavailable row when no model snapshot exists, rather than substituting the account percentage.
+- Reset times use the local timezone. Each limit gets its own row to avoid a single long footer being clipped in narrow terminals.
 - Bars avoid a red/green scale so they stay readable in daltonized themes: cyan below 50%, yellow below 80%, magenta from 80%.
-- Missing values show as `?`. The script needs POSIX `sh` and `jq`.
+- Missing token counts show as `?`; missing percentages show `— unavailable`. The script needs POSIX `sh` and `jq`.
 
 ## Install
 
