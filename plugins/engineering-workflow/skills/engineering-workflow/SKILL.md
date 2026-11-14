@@ -10,7 +10,7 @@ Use project instructions, established tools, and the permissions already granted
 ## Discover skills and choose a model
 
 - Look up names and descriptions in the host's active skill catalog. Read only the relevant skill and the references needed for the task. Use the [local skill index](references/skill-index.md) when the host catalog is unavailable or a project has configured a prompt hook.
-- When the host lets you choose, use the lightest available model that can handle each role. Use a lightweight model for clear, localized edits, a standard model for integration or debugging, and a stronger model for architecture or high-risk review. Specify the model and reasoning level for delegated work where supported. Report the model actually used.
+- When the host lets you choose, use the lightest available model that can handle each role. Use a lightweight model for clear, localized edits, a standard model for integration or debugging, and a stronger model for architecture or high-risk review. If the host fixes the session model or reasoning level, proceed with that setting. Specify the model and reasoning level for delegated work where supported.
 
 ## Harness and task graph
 

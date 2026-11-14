@@ -7,7 +7,7 @@ Use the project's report format and location where specified. Otherwise report i
 | Start | Goal, scope, dependencies, required checks | Implementer |
 | After changes | Current snapshot, diff, commands, results, unverified checks | Reviewer |
 | After review | Reviewer and model, snapshot, findings, disposition, rechecks | Implementer and user |
-| Completion or stop | Outcome, evidence, open items, next action | User or next session |
+| Completion or stop | Outcome, evidence, open items, next action, applied skills, model settings, usage | User or next session |
 
 For a complex task, include the outcome, a Mermaid diagram of dependencies or flow, and one concrete example. List check commands, the tested snapshot, and results. Distinguish synthetic checks from tests on real devices or services. Describe the reviewer and model actually used. Keep limitations and any remaining action visible.
 

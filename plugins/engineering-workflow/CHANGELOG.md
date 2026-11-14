@@ -2,6 +2,14 @@
 
 버전마다 무엇을, 왜, 누가 요청해서 바꿨는지 적는다. 플러그인 버전은 `.claude-plugin/plugin.json`과 `plugin.json`의 `version`과 같아야 한다.
 
+## 0.6.2 — 2026-11-14
+
+사용자 요청: 하네스의 사용량 표시를 Claude Code에서도 하단 바로 보이게 한다.
+
+- 추가: `integrations/statusline/claude-usage.sh` — Claude Code 상태 줄 명령. 모델, 컨텍스트 사용 바(사용 토큰/용량, 비율이 없으면 `current_usage`로 계산), 5시간·7일 계정 한도와 초기화 시각을 한 줄로 그린다. 색약 테마를 고려해 청록·노랑·자홍을 쓴다. 값이 없으면 `?`로 표시한다. BSD·GNU `date` 모두 지원한다.
+- 추가: 시험 `tools/hook_tests/test_claude_statusline.py`(`sh`와 `jq`가 없으면 건너뜀).
+- 변경: README 두 개의 사용량 절을 Codex CLI와 Claude Code로 나눴다. 최종 보고 항목(적용한 스킬, 모델 설정, 사용량)을 개요와 보고 안내 표에 반영했다.
+
 ## 0.6.1 — 2026-11-14
 
 - Codex 작업의 최종 보고에 현재 세션에서 확인한 모델, 컨텍스트, 누적 토큰, 계정 한도를 기록한다.

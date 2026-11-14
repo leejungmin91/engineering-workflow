@@ -28,3 +28,4 @@
 | `skills/engineering-workflow/scripts/check_record.py` | 완료 기록의 검사 결과·작업본·의존성을 검사한다 |
 | `skills/engineering-workflow/scripts/skill_index.py` | 스킬 메타데이터 색인을 만들고 찾는다 (선택형 훅의 입력) |
 | `skills/engineering-workflow/scripts/codex_usage.py` | 현재 Codex 세션의 모델, 토큰, 계정 한도 메타데이터를 출력한다 |
+| `../../integrations/statusline/claude-usage.sh` | Claude Code 상태 줄에 모델, 컨텍스트 바, 5시간·7일 한도를 표시한다 (수동 설치, 플러그인에 포함되지 않음) |

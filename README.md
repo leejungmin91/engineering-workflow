@@ -36,7 +36,7 @@ flowchart TB
 
 The task graph selects checks from the final diff. Copy-only and image-only changes get a direct content or display check and skip automated tests unless the project requires them. Mixed changes also run the tests for the affected behavior. [Verification paths](docs/workflow-flow.md)
 
-Independent review checks the diff and evidence when requested or when shared contracts, data, permissions, or deployments change. The final report lists the result, checks run, and open issues. When the host offers model selection, the workflow uses the lightest model suited to each role.
+Independent review checks the diff and evidence when requested or when shared contracts, data, permissions, or deployments change. The final report lists the result, checks run, open issues, applied skills, actual model settings, and observed usage. The workflow chooses the lightest suitable model for each role when the host offers a choice. For a fixed session, the report records the host's settings.
 
 The plugin installs one hook: when the assistant finishes a turn, the work left in the repository is committed and pushed. This harness is for personal projects, so finished work is never held back waiting for a commit request. See [Hooks](#hooks). Slack and Discord MCP can provide task context and stay optional. See the [skill index guide](plugins/engineering-workflow/skills/engineering-workflow/references/skill-index.md) and [MCP setup](docs/mcp-setup.md).
 
@@ -108,7 +108,9 @@ python plugins/engineering-workflow/skills/engineering-workflow/scripts/check_re
 
 The example reports a failed regression, stale lint evidence, and a pending UI check. See the [record format](plugins/engineering-workflow/skills/engineering-workflow/references/harness-record.md).
 
-### Codex CLI usage display
+### Usage display
+
+#### Codex CLI
 
 Run `/statusline` to choose fields for your terminal footer, or set this array under the existing `[tui]` section in `~/.codex/config.toml` and reopen Codex CLI. [Codex CLI commands](https://learn.chatgpt.com/docs/developer-commands?surface=cli#configure-footer-items-with-statusline)
 
@@ -118,6 +120,14 @@ status_line = ["model-with-reasoning", "context-used", "context-remaining", "con
 ```
 
 The footer shows the model and reasoning level, context usage and capacity, cumulative session tokens, and available account limits. The engineering workflow also reads the latest local usage snapshot for its final report when Python 3 and the current Codex session log are available.
+
+#### Claude Code
+
+[`integrations/statusline/claude-usage.sh`](integrations/statusline/README.md) draws the model, a context window bar with occupied tokens and capacity, and the 5-hour and 7-day account limits with reset times. Copy it to `~/.claude/statusline-usage.sh` and add a `statusLine` command to `~/.claude/settings.json`. A plugin cannot set the status line, so this is a one-time manual step. The script needs `sh` and `jq`.
+
+```json
+"statusLine": { "type": "command", "command": "sh ~/.claude/statusline-usage.sh", "padding": 0 }
+```
 
 ## Source skills
 

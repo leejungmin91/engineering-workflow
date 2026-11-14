@@ -38,7 +38,7 @@ flowchart TB
 
 작업 그래프는 최종 변경 사항을 보고 검사 경로를 고릅니다. 문구나 이미지만 교체하면 변경 내용과 표시를 직접 확인하고, 프로젝트가 요구하는 경우에 자동 테스트를 실행합니다. 동작 변경이 포함되면 해당 동작도 테스트합니다. [검증 흐름](docs/workflow-flow.md)
 
-요청이 있거나 공용 계약, 데이터, 권한, 배포에 영향이 있으면 교차검토로 최종 변경과 검증 근거를 확인합니다. 마지막 보고에는 결과, 실행한 검사, 남은 문제가 들어갑니다. 모델 선택이 가능한 도구에서는 역할마다 해당 작업을 감당할 수 있는 가장 가벼운 모델을 사용합니다.
+요청이 있거나 공용 계약, 데이터, 권한, 배포에 영향이 있으면 교차검토로 최종 변경과 검증 근거를 확인합니다. 마지막 보고에는 결과, 실행한 검사, 남은 문제, 실제 적용한 스킬, 모델과 추론 강도, 확인한 사용량이 들어갑니다. 모델 선택이 가능한 도구에서는 역할마다 해당 작업을 감당할 수 있는 가장 가벼운 모델을 사용합니다. 세션 설정이 고정되어 있으면 도구가 지정한 모델과 추론 강도를 보고합니다.
 
 플러그인을 설치하면 훅 하나가 함께 등록됩니다. 어시스턴트가 턴을 마치면 저장소에 남은 변경을 커밋하고 푸시합니다. 이 하네스는 개인 프로젝트용이라, 끝난 작업을 커밋 요청이 올 때까지 붙들어 두지 않습니다. [훅](#훅) 절을 보세요. Slack·Discord MCP는 필요할 때 관련 맥락을 읽는 선택 사항입니다. [스킬 인덱스 안내](plugins/engineering-workflow/skills/engineering-workflow/references/skill-index.md) · [MCP 연동](docs/mcp-setup.md)
 
@@ -108,7 +108,9 @@ python plugins/engineering-workflow/skills/engineering-workflow/scripts/check_re
 
 [검증 기록 형식](plugins/engineering-workflow/skills/engineering-workflow/references/harness-record.md)
 
-### Codex CLI 사용량 표시
+### 사용량 표시
+
+#### Codex CLI
 
 `/statusline`에서 터미널 하단에 표시할 항목을 고를 수 있습니다. 또는 `~/.codex/config.toml`의 기존 `[tui]` 아래에 다음 배열을 넣고 Codex CLI를 다시 실행하세요. [Codex CLI 명령](https://learn.chatgpt.com/docs/developer-commands?surface=cli#configure-footer-items-with-statusline)
 
@@ -118,6 +120,14 @@ status_line = ["model-with-reasoning", "context-used", "context-remaining", "con
 ```
 
 하단에는 모델과 추론 강도, 컨텍스트 사용률과 용량, 세션 누적 토큰, 제공되는 계정 한도가 표시됩니다. Python 3와 현재 Codex 세션 기록에 접근할 수 있으면 하네스도 최신 수치를 읽어 최종 보고에 넣습니다.
+
+#### Claude Code
+
+[`integrations/statusline/claude-usage.sh`](integrations/statusline/README.md)는 하단에 모델, 컨텍스트 사용 바(사용 토큰과 용량), 5시간·7일 계정 한도와 초기화 시각을 표시합니다. 이 파일을 `~/.claude/statusline-usage.sh`로 복사하고 `~/.claude/settings.json`에 `statusLine` 명령을 추가하세요. 플러그인은 상태 줄을 설정할 수 없어 한 번은 직접 설치해야 합니다. `sh`와 `jq`가 필요합니다.
+
+```json
+"statusLine": { "type": "command", "command": "sh ~/.claude/statusline-usage.sh", "padding": 0 }
+```
 
 ## 참고한 스킬 10개
 
