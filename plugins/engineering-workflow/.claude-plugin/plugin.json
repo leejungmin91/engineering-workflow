@@ -1,6 +1,6 @@
 {
   "name": "engineering-workflow",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "description": "Plan dependencies, verify work, report completion evidence, and commit and push finished work automatically.",
   "author": {
     "name": "leejungmin91"

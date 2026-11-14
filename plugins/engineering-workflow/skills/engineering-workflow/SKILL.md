@@ -12,6 +12,12 @@ Use project instructions, established tools, and the permissions already granted
 - Look up names and descriptions in the host's active skill catalog. Read only the relevant skill and the references needed for the task. Use the [local skill index](references/skill-index.md) when the host catalog is unavailable or a project has configured a prompt hook.
 - When the host lets you choose, use the lightest available model that can handle each role. Use a lightweight model for clear, localized edits, a standard model for integration or debugging, and a stronger model for architecture or high-risk review. If the host fixes the session model or reasoning level, proceed with that setting. Specify the model and reasoning level for delegated work where supported.
 
+## Do the work yourself
+
+- Deliver the finished result the user asked for. When it needs assets, packages, data, or tools, find a legitimate source (free licenses such as CC0, official registries, project dependencies), fetch it, wire it in, and record the source and license. Do not answer with instructions for the user to do that part.
+- Hand a step back only when it truly needs the user: signing in, entering secrets, paying, accepting a license, operating a physical device, or making a product decision. Do everything around that step first, then state what you tried, why it is blocked, and the single action the user must take.
+- If no acceptable source exists, use the best available placeholder, keep it easy to replace, and report the gap as an open item rather than as the user's task.
+
 ## Harness and task graph
 
 - Before editing, define the expected result, change scope, and required checks. Find commands in the current project's instructions, CI, and scripts. Reuse existing code and tools, preserve unrelated changes, and keep the diff focused.

@@ -2,6 +2,12 @@
 
 Keep the version in `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json` in sync.
 
+## 0.6.4 — 2026-11-14
+
+사용자 요청: 완성도를 요청했는데 에이전트가 3D 모델을 사용자가 직접 넣으라고 안내했다. 하네스가 이런 떠넘기기를 막아야 한다.
+
+- 추가: 스킬 본문에 "Do the work yourself" 절. 에셋·패키지·도구는 정당한 출처(CC0 등)에서 직접 구해 연결하고 출처와 라이선스를 기록한다. 로그인, 비밀 값, 결제, 라이선스 동의, 실제 기기, 제품 결정처럼 사용자만 할 수 있는 단계만 넘기며, 그때는 시도한 것과 막힌 이유, 필요한 행동 하나를 적는다. 출처가 없으면 교체하기 쉬운 임시 대체물을 쓰고 남은 문제로 보고한다.
+
 ## 0.6.3 — 2026-11-14
 
 - Register the Stop hook through the Codex compatibility manifest so Codex builds that skip hooks in the portable manifest can discover it.
