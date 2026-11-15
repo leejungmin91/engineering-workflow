@@ -70,9 +70,10 @@ Codex 데스크톱의 로컬 MCP 설정에서 CLI로 추가한 서버를 사용�
 2. 서버를 버전 고정으로 등록합니다. 설치 전에 PyPI에서 최신 버전을 확인해 `<버전>`에 넣습니다.
 
    ```sh
-   claude mcp add blender --scope user -e DISABLE_TELEMETRY=1 -e BLENDER_MCP_DISABLE_TELEMETRY=1 -- uvx mcp-for-blender==<버전>
+   claude mcp add blender --scope user -e DISABLE_TELEMETRY=1 -e BLENDER_MCP_DISABLE_TELEMETRY=1 -e MCP_DISABLE_TELEMETRY=1 -- uvx mcp-for-blender==<버전>
    ```
-3. 같은 버전의 애드온(`addon.py`)을 저장소 릴리스에서 받아 Blender → Preferences → Add-ons → Install from Disk로 설치하고 켭니다. Blender 사이드바의 MCP 탭에서 서버를 시작합니다.
+   2026-11-15에 설치한 버전은 `2.2.9`입니다.
+3. 같은 버전의 애드온은 패키지 안의 `blender_mcp/bundled/addon.py`입니다(`uvx`가 받은 뒤 `~/.cache/uv` 아래). 화면 없이 설치하려면 `blender --background --python`으로 `bpy.ops.preferences.addon_install(filepath=...)`, `addon_utils.enable(..., default_set=True, persistent=True)`, `bpy.ops.wm.save_userpref()`를 실행합니다. 애드온의 텔레메트리 동의(`telemetry_consent`)와 외부 연동은 기본값이 모두 꺼짐이고, 서버 자동 시작만 켜짐입니다.
 4. 애드온의 Poly Haven, Sketchfab, Poly Pizza, Hunyuan3D, Hyper3D, Meshy, Tripo, World Labs 연동은 끈 채로 둡니다. 쓰려면 사용자에게 먼저 묻습니다(생성 서비스는 프롬프트를 외부로 보냅니다).
 5. `claude mcp list`로 연결을 확인합니다.
 
@@ -81,11 +82,16 @@ Codex 데스크톱의 로컬 MCP 설정에서 CLI로 추가한 서버를 사용�
 1. Unity → Package Manager → Add package from git URL에 고정 커밋을 붙여 넣습니다.
 
    ```
-   https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#<커밋>
+   https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#v10.3.0
    ```
-   확인한 커밋은 `5914ce5bd9d11d66a7896ce72e395b0a2f049c2a`입니다.
-2. Unity 메뉴의 MCP for Unity 창에서 텔레메트리를 끄고, Unity를 띄우는 환경에 `UNITY_MCP_DISABLE_TELEMETRY=1`을 둡니다.
-3. 같은 창에서 Claude Code 연결을 설정하거나, 서버 등록 시 `-e DISABLE_TELEMETRY=1 -e UNITY_MCP_DISABLE_TELEMETRY=1`을 넣습니다.
+   (`Packages/manifest.json`에 `"com.coplaydev.unity-mcp"`로 직접 넣어도 됩니다.)
+2. 에디터 쪽 텔레메트리는 Hub에서 띄운 Unity가 셸 환경 변수를 물려받지 않으므로 환경 변수로는 끌 수 없습니다. 프로젝트의 Editor 폴더에 에디터를 열 때마다 `EditorPrefs.SetBool("MCPForUnity.TelemetryDisabled", true)`를 실행하는 `[InitializeOnLoad]` 스크립트를 둡니다.
+3. 서버는 같은 버전으로 등록합니다.
+
+   ```sh
+   claude mcp add unity --scope user -e DISABLE_TELEMETRY=1 -e UNITY_MCP_DISABLE_TELEMETRY=1 -- uvx --from mcpforunityserver==10.3.0 mcp-for-unity --transport stdio
+   ```
+   Unity의 "Configure All Detected Clients"는 쓰지 않습니다(환경 변수 없이 등록됩니다).
 4. 프로젝트의 `Packages/manifest.json`이 바뀌므로, 배치 점검이나 다른 세션이 Unity를 돌리는 동안에는 설치하지 않습니다.
 
 대안: IvanMurzak/Unity-MCP(Apache-2.0)는 명령줄 시험 흐름이 강점이지만 로그인 단계가 있어 함께 쓰지 않습니다.
