@@ -12,6 +12,8 @@ SKILL_NAME = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}(?::[a-zA-Z0-9][a-zA-Z0
 TERM = re.compile(r"[^\W_]+")
 BLOCK_SCALAR = re.compile(r"[|>](?:[+-][1-9]?|[1-9][+-]?)?")
 KOREAN_KEYWORDS = {
+    "게임": "game", "밸런스": "balance", "에셋": "asset", "성능": "performance", "플레이테스트": "playtest",
+    "사운드": "sound", "소리": "sound", "유니티": "Unity", "블렌더": "Blender", "회귀": "regression", "범위": "scope",
     "하네스": "harness", "루프": "loop", "그래프": "graph",
     "의존성": "dependency", "교차검토": "independent review",
     "코드리뷰": "code review", "검토": "review", "보고서": "report",

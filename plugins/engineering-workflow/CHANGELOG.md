@@ -2,6 +2,15 @@
 
 Keep the version in `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json` in sync.
 
+## 0.6.5 — 2026-11-15
+
+사용자 요청: 게임 개발에 필요한 스킬·플러그인 중 GitHub 스타가 많은 것을 하네스에 넣고 색인한다.
+
+- 추가: `game-dev` 스킬. Claude-Code-Game-Studios(39k)의 balance-check, asset-audit, perf-profile, playtest-report, regression-suite, scope-check, art-bible, vertical-slice 규칙을 고정 커밋에서 읽어 옮겼다. 측정하지 못한 값은 추정하지 않고 `NOT ASSESSED`로 적는다는 규칙이 중심이다. 소리 검토와 MCP 사용 규칙을 더했다.
+- 추가: `skills/game-dev/references/game-dev-sources.md` — 저장소, 스타, 라이선스, 고정 커밋, 반영 방식, MCP 텔레메트리 확인 결과.
+- 추가: `docs/mcp-setup.md`에 Unity MCP(CoplayDev)와 Blender MCP(ahujasid) 설치 안내. 두 서버 모두 기본으로 사용 통계를 보내므로 끄는 설정을 필수로 적었다.
+- 변경: 스킬 색인의 한국어 대응어에 게임 개발 용어를 추가했다.
+
 ## 0.6.4 — 2026-11-14
 
 사용자 요청: 완성도를 요청했는데 에이전트가 3D 모델을 사용자가 직접 넣으라고 안내했다. 하네스가 이런 떠넘기기를 막아야 한다.

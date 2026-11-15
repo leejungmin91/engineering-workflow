@@ -57,3 +57,35 @@ Codex 데스크톱의 로컬 MCP 설정에서 CLI로 추가한 서버를 사용�
 ### 연결 추가
 
 다른 서비스가 필요하면 해당 호스트에서 공식 MCP나 검토한 MCP를 등록합니다. 작업 스킬은 연결 목록과 별도로 업데이트할 수 있습니다.
+
+## 게임 개발: Blender MCP와 Unity MCP
+
+선택 사항입니다. 에이전트가 열린 Blender나 Unity 에디터를 직접 보고 조작할 때 씁니다. 반복 실행해야 하는 검사는 계속 배치 스크립트로 돌립니다. 출처와 확인 내용은 `plugins/engineering-workflow/skills/game-dev/references/game-dev-sources.md`에 있습니다.
+
+**두 서버 모두 기본으로 사용 통계를 외부로 보냅니다.** 이 하네스는 사용자의 프롬프트와 산출물을 외부로 보내지 않으므로 아래의 끄는 설정을 반드시 넣습니다. 인터넷 설치 스크립트를 바로 실행하는 방식(`curl … | sh`, `irm … | iex`)은 쓰지 않습니다.
+
+### Blender MCP (ahujasid/blender-mcp, MIT)
+
+1. `uv`를 설치합니다(macOS `brew install uv`, Windows `winget install --id=astral-sh.uv -e`).
+2. 서버를 버전 고정으로 등록합니다. 설치 전에 PyPI에서 최신 버전을 확인해 `<버전>`에 넣습니다.
+
+   ```sh
+   claude mcp add blender --scope user -e DISABLE_TELEMETRY=1 -e BLENDER_MCP_DISABLE_TELEMETRY=1 -- uvx mcp-for-blender==<버전>
+   ```
+3. 같은 버전의 애드온(`addon.py`)을 저장소 릴리스에서 받아 Blender → Preferences → Add-ons → Install from Disk로 설치하고 켭니다. Blender 사이드바의 MCP 탭에서 서버를 시작합니다.
+4. 애드온의 Poly Haven, Sketchfab, Poly Pizza, Hunyuan3D, Hyper3D, Meshy, Tripo, World Labs 연동은 끈 채로 둡니다. 쓰려면 사용자에게 먼저 묻습니다(생성 서비스는 프롬프트를 외부로 보냅니다).
+5. `claude mcp list`로 연결을 확인합니다.
+
+### Unity MCP (CoplayDev/unity-mcp, MIT)
+
+1. Unity → Package Manager → Add package from git URL에 고정 커밋을 붙여 넣습니다.
+
+   ```
+   https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#<커밋>
+   ```
+   확인한 커밋은 `5914ce5bd9d11d66a7896ce72e395b0a2f049c2a`입니다.
+2. Unity 메뉴의 MCP for Unity 창에서 텔레메트리를 끄고, Unity를 띄우는 환경에 `UNITY_MCP_DISABLE_TELEMETRY=1`을 둡니다.
+3. 같은 창에서 Claude Code 연결을 설정하거나, 서버 등록 시 `-e DISABLE_TELEMETRY=1 -e UNITY_MCP_DISABLE_TELEMETRY=1`을 넣습니다.
+4. 프로젝트의 `Packages/manifest.json`이 바뀌므로, 배치 점검이나 다른 세션이 Unity를 돌리는 동안에는 설치하지 않습니다.
+
+대안: IvanMurzak/Unity-MCP(Apache-2.0)는 명령줄 시험 흐름이 강점이지만 로그인 단계가 있어 함께 쓰지 않습니다.

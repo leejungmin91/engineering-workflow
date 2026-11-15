@@ -11,6 +11,7 @@
 | 스킬 | 분류 | 한 줄 용도 | 핵심어 |
 | --- | --- | --- | --- |
 | `engineering-workflow` | 작업 절차 | 완료 기준·작업 순서·검증 루프·교차검토·보고를 한 흐름으로 진행한다 | 하네스, 검증, 의존성, 교차검토, 보고서, harness, verification, dependency graph, review, report |
+| `game-dev` | 게임 개발 | 밸런스·진행, 에셋 예산 감사, 성능 예산, 플레이 보고, 회귀 시험, 범위 점검, 아트 방향, 소리 검토, Unity·Blender MCP 사용 규칙 | 게임, 밸런스, 에셋, 성능, 플레이테스트, 사운드, 유니티, 블렌더, game, balance, asset audit, performance, playtest, sound, Unity, Blender, MCP |
 
 ## 훅 (설치하면 바로 동작)
 
