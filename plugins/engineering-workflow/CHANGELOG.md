@@ -11,6 +11,7 @@ Keep the version in `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json`
 - 추가: `scripts/lane_guard.py`(`PreToolUse` 훅)와 `templates/multi-session/WORKING.md`. 프로젝트가 복사해서 쓴다. 지킬 경로는 `.claude/lane-guard.json`의 `open`·`guarded`로 정하고, 설정이 없으면 저장소 전체를 지킨다. 시험은 `tests/test_lane_guard.py`.
 - 변경: `auto_commit_push`는 `WORKING.md`에 `## Lane 1` 절이 있으면 커밋하지 않고 로컬 커밋만 푸시한다. 전부 스테이징하면 다른 세션의 파일이 딸려 들어가기 때문이다.
 - 변경: 스킬 본문에 모델 규칙(설계·새 시스템·저장 데이터·위험한 리뷰는 가장 강한 모델, 위임마다 모델 명시), 점검 규칙(전체 점검은 배치·저장·공유 상태 변경과 묶음마다 한 번, 커밋 메시지에 돌린 점검 기록, 점검 수정은 결함을 되돌려 실패를 확인), 디자인 규칙(유명 제품 조사 후 견본 하나 먼저)을 더했다. 교차검토 안내에는 한도가 없을 때의 대체 경로를 적었다.
+- 독립 검토(Codex, 읽기 전용)가 잠금 훅에서 찾은 결함 8건을 고치고 시험에 넣었다: `2>/dev/null`이 붙은 전부 스테이징, `./.`과 `git commit -- .`, `git.exe`, 따옴표 안에 역슬래시가 있는 heredoc 구분자, 형식이 틀린 입력, `## Lane 10`을 Lane 1로 읽던 것과 세션 id 부분 일치, 설정 경로의 `./`와 대소문자, 하위 폴더에서 실행할 때의 저장소 루트.
 
 ## 0.6.5 — 2026-11-15
 

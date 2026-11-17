@@ -38,6 +38,9 @@ DENY = [
     'bash -c "git add -A"', 'FOO=1 git add --all', 'git commit -qam "m"', 'git add --update',
     'git commit -am"fix: typo"', 'git commit -mtest -a', 'git commit -qa', 'git add -A .',
     'git commit -S0x1234567F -a -m fix', 'git commit -aS0xdeadbeef -m fix',
+    'git add -A 2>/dev/null', 'git add -u 2>&1', 'git add ./.', 'git add .//', 'git commit -m fix -- .', 'git commit . -m fix',
+    'git.exe add -A', '/usr/bin/git add -A', 'C:/Program\\ Files/Git/bin/git.exe add -A', 'GIT.EXE add .',
+    'cat <<"E\\$OF"\nbody\nE$OF\ngit add -A',
 ]
 ALLOW = [
     'git add docs/a.md src/b.py', 'git commit -m "use git add -A never"', "git commit -m 'git commit -a is refused'",
@@ -50,6 +53,8 @@ ALLOW = [
     'git commit -F - <<EOF\ngit add -A\nEOF', 'git diff --stat -- .', 'git checkout -- .gitignore', 'git add a.txt # then git add -A',
     'git commit -mbar', 'git commit -m a', 'git commit -qm "a b"', 'git add -A docs/a.md', 'git add -u docs/a.md', 'git commit -Fa.txt',
     'git commit -S0xdeadbeef -m fix', 'git commit -uall -m fix', 'git commit -S -m fix',
+    'git add a.txt 2>/dev/null', 'git add -A docs 2>&1', 'git add ./a.txt', 'git commit -m fix -- a.txt', 'git commit a.txt -m .',
+    'cat <<"E\\$OF"\ngit add -A\nE$OF\ngit add a.txt', 'git add v2 3',
 ]
 
 
@@ -165,12 +170,57 @@ class LaneGuardTest(unittest.TestCase):
         self.assertEqual(self.edit("src/x.py", PLAN), "allow")
         self.assertEqual(self.run_hook("Bash", {"command": "git add -A"}), "allow")
         (self.root / "WORKING.md").unlink()
+        self.assertEqual(self.run_hook("Edit", {"file_path": "src/x.py"}, PLAN), "allow")
+        result = self.raw(json.dumps({"session_id": PLAN, "tool_name": "Edit", "cwd": 17,
+                                      "tool_input": {"file_path": "src/x.py"}}))
+        self.assertEqual((result.returncode, result.stderr.strip()), (0, ""))
         self.assertEqual(self.edit("src/x.py", PLAN), "allow")
         self.assertEqual(self.run_hook("Bash", {"command": "git add -A"}), "allow")
 
+    def test_lane_ten_is_not_lane_one(self):
+        self.write_working("# Who is working\n\n## Lane 10: research\n\n- x, session_id=%s\n" % BUILD)
+        self.assertEqual(self.edit("src/x.py", PLAN), "allow")
+        self.assertEqual(self.run_hook("Bash", {"command": "git add -A"}), "allow")
+
+    def test_session_ids_match_exactly(self):
+        self.write_working(WORKING % (BUILD + "Z"))
+        self.assertEqual(self.edit("src/x.py", BUILD), "deny")
+        self.write_working(WORKING % "build-blue")
+        self.assertEqual(self.edit("src/x.py", "build-blue"), "allow")
+        self.assertEqual(self.edit("src/x.py", "build"), "deny")
+        self.write_working("## Lane 1\n\n- build holds it with session_id=%s.\n" % BUILD)
+        self.assertEqual(self.edit("src/x.py", BUILD), "allow")
+
+    def test_config_paths_are_normalised(self):
+        self.write_config({"guarded": ["./src/"], "open": ["./out//"]})
+        self.assertEqual(self.edit("src/app.py", PLAN), "deny")
+        self.assertEqual(self.edit("out/a.txt", PLAN, "Write"), "allow")
+        self.assertEqual(self.edit("claude.md", PLAN, "Write"), "deny")
+        self.assertEqual(self.edit(".Claude/settings.json", PLAN, "Write"), "deny")
+
+    def test_other_spellings_of_the_same_file(self):
+        if not os.path.exists(str(self.root / "working.md")):
+            self.skipTest("case-sensitive file system")
+        self.write_config({"guarded": ["src/"]})
+        (self.root / "src").mkdir()
+        self.assertEqual(self.edit("working.md", PLAN, "Write"), "allow")
+        self.assertEqual(self.edit("SRC/app.py", PLAN), "deny")
+
+    def test_root_is_found_from_a_subdirectory(self):
+        sub = self.root / "src" / "deep"
+        sub.mkdir(parents=True)
+        env = {k: v for k, v in os.environ.items() if k != "CLAUDE_PROJECT_DIR"}
+        payload = {"session_id": PLAN, "tool_name": "Edit", "tool_input": {"file_path": "x.py"}, "cwd": str(sub)}
+        result = subprocess.run([sys.executable, "-I", str(HOOK)], input=json.dumps(payload), capture_output=True,
+                                text=True, env=env, cwd=str(sub))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('"deny"', result.stdout)
+
     def test_malformed_input_is_a_clean_allow(self):
         for text in ('{"tool_name": "Bash", "tool_input": "x"}', "[1, 2]", "not json", '{"tool_name": "Bash"}',
-                     '{"tool_name": "Edit", "tool_input": {"file_path": 3}}'):
+                     '{"tool_name": "Edit", "tool_input": {"file_path": 3}}',
+                     '{"tool_input": {"file_path": "src/x.py"}}', '{"tool_name": 5, "tool_input": {"file_path": "src/x.py"}}',
+                     '{"tool_name": "Edit", "cwd": 17, "tool_input": {"file_path": 3}}'):
             with self.subTest(text=text):
                 result = self.raw(text)
                 self.assertEqual((result.returncode, result.stdout.strip(), result.stderr.strip()), (0, "", ""))

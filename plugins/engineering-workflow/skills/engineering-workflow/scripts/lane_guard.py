@@ -50,14 +50,21 @@ def simple_commands(cmd):
             while j < n and cmd[j] in " \t": j += 1
             k = j; delim = []
             while k < n and cmd[k] not in " \t\n;&|<>()":
-                if cmd[k] in "'\"":
-                    e = cmd.find(cmd[k], k + 1)
+                if cmd[k] == "'":
+                    e = cmd.find("'", k + 1)
                     if e < 0: e = n
                     delim.append(cmd[k + 1:e]); k = e + 1
+                elif cmd[k] == '"':
+                    k += 1
+                    while k < n and cmd[k] != '"':
+                        if cmd[k] == "\\" and k + 1 < n and cmd[k + 1] in '"\\$`': delim.append(cmd[k + 1]); k += 2
+                        else: delim.append(cmd[k]); k += 1
+                    k += 1
                 elif cmd[k] == "\\" and k + 1 < n: delim.append(cmd[k + 1]); k += 2
                 else: delim.append(cmd[k]); k += 1
             pending.append(("".join(delim), strip)); i = k; continue
         if c in "<>":
+            if has_word and "".join(word).isdigit(): word, has_word = [], False
             end_word()
             while i < n and cmd[i] in "<>": i += 1
             if i < n and cmd[i] == "&": i += 1
@@ -86,14 +93,21 @@ KEYWORDS = {"then", "do", "else", "elif", "if", "while", "until", "!", "time", "
 GIT_VALUE_OPTS = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--super-prefix", "--config-env"}
 COMMIT_VALUE_OPTS = {"--message", "--file", "--author", "--date", "--reuse-message", "--reedit-message", "--fixup",
                      "--squash", "--template", "--cleanup", "--pathspec-from-file", "--trailer"}
-EVERYTHING = {".", "./", "*", ":/", ":/*", "..", "../", ":(top)", ":(top)*", ":(top)."}
+EVERYTHING = {".", "*", ":/", ":/*", "..", ":(top)", ":(top)*", ":(top)."}
+
+
+def is_everything(pathspec):
+    if pathspec in EVERYTHING: return True
+    parts = [p for p in pathspec.split("/") if p not in ("", ".")]
+    return all(p in ("..", "*") for p in parts)
 
 
 def stages_all(argv, depth=0):
     a = list(argv)
     while a and (a[0] in KEYWORDS or re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", a[0])): a.pop(0)
     if not a: return False
-    name = os.path.basename(a[0])
+    name = re.split(r"[\\/]", a[0])[-1].lower()
+    if name.endswith(".exe"): name = name[:-4]
     if name in ("sh", "bash", "zsh", "dash") and "-c" in a and depth < 3:
         k = a.index("-c")
         return k + 1 < len(a) and any(stages_all(c, depth + 1) for c in simple_commands(a[k + 1]))
@@ -107,7 +121,7 @@ def stages_all(argv, depth=0):
         paths_only, all_flag, named, everything = False, False, 0, False
         for t in rest:
             if paths_only or not t.startswith("-") or t == "-":
-                if t in EVERYTHING: everything = True
+                if is_everything(t): everything = True
                 else: named += 1
                 continue
             if t == "--": paths_only = True
@@ -118,7 +132,7 @@ def stages_all(argv, depth=0):
         k = 0
         while k < len(rest):
             t = rest[k]
-            if t == "--": break
+            if t == "--": return any(is_everything(x) for x in rest[k + 1:])
             if t == "--all": return True
             if t in COMMIT_VALUE_OPTS: k += 2; continue
             if t.startswith("-") and not t.startswith("--") and len(t) > 1:
@@ -131,17 +145,43 @@ def stages_all(argv, depth=0):
                     if ch in "Su": break
                 k += 2 if takes_next else 1
                 continue
+            if not t.startswith("-") and is_everything(t): return True
             k += 1
         return False
     return False
 
 
-def covers(entries, rel):
+def covers(entries, rel, fold):
+    rel = fold(rel)
     for entry in entries:
-        entry = str(entry).replace("\\", "/").strip("/")
+        parts = [p for p in str(entry).replace("\\", "/").split("/") if p not in ("", ".")]
+        entry = fold("/".join(parts))
         if entry and (rel == entry or rel.startswith(entry + "/")):
             return True
     return False
+
+
+def find_root(data):
+    env = os.environ.get("CLAUDE_PROJECT_DIR")
+    if env:
+        return os.path.realpath(env)
+    cwd = data.get("cwd")
+    start = os.path.realpath(cwd if isinstance(cwd, str) and cwd else os.getcwd())
+    here = start
+    while True:
+        if os.path.isfile(os.path.join(here, "WORKING.md")) or os.path.exists(os.path.join(here, ".git")):
+            return here
+        parent = os.path.dirname(here)
+        if parent == here:
+            return start
+        here = parent
+
+
+def same_file(a, b):
+    try:
+        return os.path.samefile(a, b)
+    except Exception:
+        return False
 
 
 def read_list(config, key):
@@ -159,17 +199,20 @@ def main():
     inp = data.get("tool_input") or {}
     if not isinstance(inp, dict):
         return
-    root = os.path.realpath(os.environ.get("CLAUDE_PROJECT_DIR") or data.get("cwd") or os.getcwd())
+    tool = data.get("tool_name")
+    if not isinstance(tool, str) or not tool:
+        return
+    root = find_root(data)
     try:
         with open(os.path.join(root, "WORKING.md"), encoding="utf-8") as handle:
             text = handle.read()
     except Exception:
         return
-    section = re.search(r"^## Lane 1.*?$(.*?)(?=^## |\Z)", text, re.S | re.M)
+    section = re.search(r"^## Lane 1(?![0-9]).*?$(.*?)(?=^## |\Z)", text, re.S | re.M)
     if not section:
         return
 
-    if data.get("tool_name") == "Bash":
+    if tool == "Bash":
         try:
             swept = any(stages_all(c) for c in simple_commands(str(inp.get("command", ""))))
         except Exception:
@@ -182,7 +225,9 @@ def main():
     path = inp.get("file_path") or inp.get("notebook_path") or ""
     if not isinstance(path, str) or not path:
         return
-    full = os.path.realpath(path if os.path.isabs(path) else os.path.join(data.get("cwd") or root, path))
+    cwd = data.get("cwd")
+    base = cwd if isinstance(cwd, str) and cwd else root
+    full = os.path.realpath(path if os.path.isabs(path) else os.path.join(base, path))
     try:
         rel = os.path.relpath(full, root)
     except ValueError:
@@ -190,8 +235,11 @@ def main():
     if rel == os.pardir or rel.startswith(os.pardir + os.sep) or os.path.isabs(rel):
         return
     rel = rel.replace(os.sep, "/")
-    if rel == "WORKING.md":
+    working = os.path.join(root, "WORKING.md")
+    if rel == "WORKING.md" or same_file(full, working):
         return
+    folds = working.swapcase() != working and same_file(working.swapcase(), working)
+    fold = (lambda x: x.lower()) if folds else (lambda x: x)
 
     config = {}
     try:
@@ -201,16 +249,17 @@ def main():
             config = loaded
     except Exception:
         pass
-    always = [".claude", "CLAUDE.md", "AGENTS.md"]
+    always = [".claude", "claude.md", "agents.md"]
     guarded = read_list(config, "guarded")
-    if not covers(always, rel):
-        if covers(read_list(config, "open") or [], rel):
+    if not covers(always, rel, str.lower):
+        if covers(read_list(config, "open") or [], rel, fold):
             return
-        if guarded is not None and not covers(guarded, rel):
+        if guarded is not None and not covers(guarded, rel, fold):
             return
 
     sid = str(data.get("session_id") or "")
-    holders = re.findall(r"session_id=([0-9a-fA-F-]{8,})", section.group(1))
+    holders = [h.rstrip(".") for h in re.findall(r"session_id=([A-Za-z0-9_.-]+)", section.group(1))]
+    holders = [h for h in holders if h]
     if sid and sid in holders:
         return
     if holders:

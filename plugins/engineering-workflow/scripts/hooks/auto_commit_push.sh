@@ -43,7 +43,7 @@ fi
 
 lanes=0
 top=$(git rev-parse --show-toplevel 2>/dev/null)
-if [ -n "$top" ] && grep -q '^## Lane 1' "$top/WORKING.md" 2>/dev/null; then
+if [ -n "$top" ] && grep -Eq '^## Lane 1([^0-9]|$)' "$top/WORKING.md" 2>/dev/null; then
   lanes=1
   [ "$dry_run" -eq 1 ] && printf 'DRY RUN - WORKING.md has lanes: nothing would be committed.\n'
 fi

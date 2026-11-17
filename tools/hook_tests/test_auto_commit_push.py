@@ -139,7 +139,7 @@ class AutoCommitPushTest(unittest.TestCase):
         self.assertIn("?? other-session.txt", status)
 
     def test_working_file_without_lanes_commits_as_usual(self):
-        (self.repo / "WORKING.md").write_text("# Notes\n", encoding="utf-8")
+        (self.repo / "WORKING.md").write_text("# Notes\n\n## Lane 10: research\n", encoding="utf-8")
         before = git(self.repo, "rev-parse", "HEAD").strip()
         self.run_hook()
         head = git(self.repo, "rev-parse", "HEAD").strip()

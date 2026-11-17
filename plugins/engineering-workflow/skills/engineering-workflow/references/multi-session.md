@@ -28,10 +28,10 @@ Read it before any lane 1 edit. Take the lane by writing your line, and clear it
 
 [`scripts/lane_guard.py`](../scripts/lane_guard.py) is a `PreToolUse` hook for Claude Code. While `WORKING.md` has a `## Lane 1` section, it does two things:
 
-- It refuses an edit to a guarded path unless the editing session's id is on the lane 1 line. The refusal prints that session's id.
+- It refuses an edit to a guarded path unless the editing session's id is on the lane 1 line as `session_id=<id>`, matched exactly. The refusal prints that session's id.
 - It refuses staging everything at once (`git add -A`, `git add .`, `git add -u`, `git commit -a`). Each shell command is judged by its parsed words, so the same text inside a commit message, a heredoc, or `grep` passes.
 
-Without `WORKING.md` or the section, the hook allows everything.
+Without `WORKING.md` or the section, the hook allows everything. The repository root is `CLAUDE_PROJECT_DIR`, or the nearest parent of the working directory that holds `WORKING.md` or `.git`.
 
 Install it in a project:
 
