@@ -41,13 +41,20 @@ if [ "$dry_run" -eq 1 ]; then
   export GIT_INDEX_FILE="$tempdir/index"
 fi
 
-if ! git add -A >"$errfile" 2>&1; then
+lanes=0
+top=$(git rev-parse --show-toplevel 2>/dev/null)
+if [ -n "$top" ] && grep -q '^## Lane 1' "$top/WORKING.md" 2>/dev/null; then
+  lanes=1
+  [ "$dry_run" -eq 1 ] && printf 'DRY RUN - WORKING.md has lanes: nothing would be committed.\n'
+fi
+
+if [ "$lanes" -eq 0 ] && ! git add -A >"$errfile" 2>&1; then
   say "staging failed: $(cut -c1-300 "$errfile")"
   exit 0
 fi
 
 commit_summary=""
-if ! git diff --cached --quiet; then
+if [ "$lanes" -eq 0 ] && ! git diff --cached --quiet; then
   count=$(git diff --cached --name-only | wc -l | tr -d ' ')
   all_tops=$(git diff --cached --name-only | sed 's#/.*##' | sort -u)
   # Visible paths first, dotfiles and dot-directories last.

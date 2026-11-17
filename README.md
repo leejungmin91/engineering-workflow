@@ -88,6 +88,8 @@ The plugin bundles a `Stop` hook for Claude Code and Codex. In Codex, review and
 
 The hook also pushes hand-written commits when the worktree is clean. Failures appear as a message, and a later turn retries a failed push while the commits are still local. Set `AUTO_COMMIT_TRAILER` to supply a custom `Co-Authored-By` trailer. Use `--dry-run` to preview a commit with a temporary Git index.
 
+When several sessions share one repository, `WORKING.md` with a `## Lane 1` section turns the commit off and leaves the push, and an optional `PreToolUse` lane guard lets only the one implementing session edit guarded paths. See the [multi-session guide](plugins/engineering-workflow/skills/engineering-workflow/references/multi-session.md).
+
 Requirements and limits:
 
 - POSIX `sh` and `git` on PATH (Git for Windows provides both). No Python is needed for the hook.

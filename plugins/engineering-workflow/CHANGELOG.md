@@ -2,6 +2,16 @@
 
 Keep the version in `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json` in sync.
 
+## 0.6.6 — 2026-11-18
+
+사용자 요청: 한 프로젝트에서 이틀간 쓴 다중 세션 작업 방식(브리프 10가지 규칙)을 어느 프로젝트에나 쓸 수 있게 하네스에 넣는다.
+
+- 추가: 스킬 본문에 "Keep going through the work list" 절. 작업 목록이 남아 있으면 멈추거나 묻지 않는다. 사용자만 정할 수 있는 결정은 "Waiting for the user" 목록에 기본값과 함께 적고 다음 작업을 한다. 되돌리기 어려운 작업의 확인 절차는 그대로다.
+- 추가: `references/multi-session.md` — 세 갈래(구현 한 세션, 생산·읽기 병렬), `WORKING.md`, 잠금 훅 설치법과 한계, build·planner 메시지, 다른 세션의 메시지를 사용자 지시로 보지 않는 규칙, 실행되는 코드의 리뷰 두 번.
+- 추가: `scripts/lane_guard.py`(`PreToolUse` 훅)와 `templates/multi-session/WORKING.md`. 프로젝트가 복사해서 쓴다. 지킬 경로는 `.claude/lane-guard.json`의 `open`·`guarded`로 정하고, 설정이 없으면 저장소 전체를 지킨다. 시험은 `tests/test_lane_guard.py`.
+- 변경: `auto_commit_push`는 `WORKING.md`에 `## Lane 1` 절이 있으면 커밋하지 않고 로컬 커밋만 푸시한다. 전부 스테이징하면 다른 세션의 파일이 딸려 들어가기 때문이다.
+- 변경: 스킬 본문에 모델 규칙(설계·새 시스템·저장 데이터·위험한 리뷰는 가장 강한 모델, 위임마다 모델 명시), 점검 규칙(전체 점검은 배치·저장·공유 상태 변경과 묶음마다 한 번, 커밋 메시지에 돌린 점검 기록, 점검 수정은 결함을 되돌려 실패를 확인), 디자인 규칙(유명 제품 조사 후 견본 하나 먼저)을 더했다. 교차검토 안내에는 한도가 없을 때의 대체 경로를 적었다.
+
 ## 0.6.5 — 2026-11-15
 
 사용자 요청: 게임 개발에 필요한 스킬·플러그인 중 GitHub 스타가 많은 것을 하네스에 넣고 색인한다.

@@ -88,6 +88,8 @@ claude plugin install engineering-workflow@engineering-workflow
 
 작업 트리가 깨끗해도 직접 만든 로컬 커밋을 푸시합니다. 실패는 메시지로 알리며, 커밋이 로컬에 남아 있으면 다음 턴 종료 시 푸시를 재시도합니다. `AUTO_COMMIT_TRAILER`로 `Co-Authored-By` 트레일러를 바꾸고, `--dry-run`으로 임시 Git 인덱스를 사용해 커밋을 미리 볼 수 있습니다.
 
+여러 세션이 한 저장소에서 일할 때는 `WORKING.md`에 `## Lane 1` 절을 두면 이 훅이 커밋하지 않고 푸시만 합니다. 선택형 `PreToolUse` 잠금 훅은 구현을 맡은 한 세션만 지키는 경로를 고치게 합니다. [다중 세션 안내](plugins/engineering-workflow/skills/engineering-workflow/references/multi-session.md)를 참고하세요.
+
 필요한 것과 한계:
 
 - PATH에 POSIX `sh`와 `git`이 있어야 합니다(Git for Windows에 둘 다 포함). 훅에는 Python이 필요하지 않습니다.

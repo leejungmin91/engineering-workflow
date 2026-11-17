@@ -7,7 +7,7 @@ Use a fresh, read-only reviewer. Confirm tool and model availability and reposit
 | Codex | A separate Claude Code session | A fresh Codex subagent or chat using Sol |
 | Claude Code | The official OpenAI Codex plugin or a verified read-only bridge | A fresh Claude Code subagent or session using Opus |
 
-Use `/codex:review` for a general diff review. When acceptance criteria or focus areas must be passed to Codex, use `/codex:adversarial-review` or a read-only bridge that accepts the handoff. Use the same packet in a fresh app chat or subagent when supported. Record the route used. If no independent session is available, record independent review as unverified and continue the checks you can run. Use MCP only when a supported connection already exists and the shared data is within the user's scope.
+Use `/codex:review` for a general diff review. When acceptance criteria or focus areas must be passed to Codex, use `/codex:adversarial-review` or a read-only bridge that accepts the handoff. Use the same packet in a fresh app chat or subagent when supported. Record the route used. When the preferred reviewer is out of quota, use the fallback on the strongest available model and name the route in the report. If no independent session is available, record independent review as unverified and continue the checks you can run. Use MCP only when a supported connection already exists and the shared data is within the user's scope.
 
 [Official Codex plugin](https://github.com/openai/codex-plugin-cc) · [Codex subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents) · [Claude Code subagents](https://code.claude.com/docs/en/sub-agents)
 

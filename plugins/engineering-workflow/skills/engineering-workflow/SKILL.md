@@ -11,6 +11,7 @@ Use project instructions, established tools, and the permissions already granted
 
 - Look up names and descriptions in the host's active skill catalog. Read only the relevant skill and the references needed for the task. Use the [local skill index](references/skill-index.md) when the host catalog is unavailable or a project has configured a prompt hook.
 - When the host lets you choose, use the lightest available model that can handle each role. Use a lightweight model for clear, localized edits, a standard model for integration or debugging, and a stronger model for architecture or high-risk review. If the host fixes the session model or reasoning level, proceed with that setting. Specify the model and reasoning level for delegated work where supported.
+- Use the strongest available model for design, new systems, changes to saved data or schemas, and high-risk review. Name the model in every delegation. A session cannot change its own model: tell the user when a switch is worth it, and when to switch back.
 
 ## Do the work yourself
 
@@ -18,24 +19,37 @@ Use project instructions, established tools, and the permissions already granted
 - Hand a step back only when it truly needs the user: signing in, entering secrets, paying, accepting a license, operating a physical device, or making a product decision. Do everything around that step first, then state what you tried, why it is blocked, and the single action the user must take.
 - If no acceptable source exists, use the best available placeholder, keep it easy to replace, and report the gap as an open item rather than as the user's task.
 
+## Keep going through the work list
+
+- While the work list has items, take the next one. Do not stop or ask whether to continue, including at the end of a batch. A slow pace is acceptable and a stalled queue is not. Project rules that set a batch size or a stop still apply.
+- Park a decision only the user can make. Record what is asked, the picture or file to look at, and the default in use meanwhile on a "Waiting for the user" list in the project's working file or the report, then take the next item.
+- When everything left depends on a parked decision, proceed on the recommended default and say so. Keep the default easy to reverse.
+- End a reply with the parked decisions and their defaults. Do not end with a question that blocks work.
+- This does not replace confirmation for destructive, irreversible, or outward-facing actions. Park those and leave them undone.
+
 ## Harness and task graph
 
 - Before editing, define the expected result, change scope, and required checks. Find commands in the current project's instructions, CI, and scripts. Reuse existing code and tools, preserve unrelated changes, and keep the diff focused.
 - For a behavior change, check the intended result and regressions. For a failure, reproduce it with the smallest useful input. Compare with the baseline when it helps isolate the cause. Evaluate workflow changes against the same case before and after.
 - For UI changes, follow project design, accessibility, and viewport requirements. Exercise the affected flow when the environment allows it. Record checks you could not run.
+- When the user calls a design awkward, research how well-known products solve it and cite the sources. Build one sample on the common pattern and show it before rolling the approach out. Give image tools a specific visual brief. Do not prescribe the current layout in the brief, and keep open exploration for the strongest model.
 - When steps have dependencies, record their IDs, prerequisites, scope, deliverables, and pass conditions. Distinguish references and tested contracts from hypotheses. Check unverified assumptions before removing, parallelizing, or deploying work.
 - Run steps after their prerequisites pass. Parallelize only independent work where permitted. Account for shared files, schemas, contracts, and test resources. When an upstream result changes, reopen affected steps and checks.
+- When several sessions share one repository, follow the [multi-session guide](references/multi-session.md): one session implements and commits, other sessions produce candidates or read, and a holder file with a guard hook keeps them apart. Do not split one implementation across parallel writers and merge the results.
 
 ### Select verification by impact
 
 - Classify the planned change when building the graph. Confirm the route against the final diff and reopen the affected checks if the scope changes. A source file can contain a copy-only edit. An image replacement qualifies when asset references, loading, layout behavior, and interactions are unaffected.
 - For copy-only or image-only changes, skip automated tests unless the project requires them. Inspect the changed content and check its placement or rendering when relevant. For copy, verify wording and any existing placeholders. For imagery, check the intended asset, framing, and display. Record the direct check and any relevant display check you could not perform.
 - For behavior changes, including mixed copy or image changes with functional edits, verify the content and run the tests that cover the affected behavior. Use the project's required verification for configuration, build, and release changes. If the impact is unclear, trace the affected references before choosing checks.
+- Run the full suite for changes to layout, saved data, or shared state, and once per batch. State in the commit message which checks ran and which were left out as not needed.
+- Prove a fix to a check by putting the defect back and seeing the check fail.
 
 ## Verification loop and independent review
 
 - Record the clue, focused change, and recheck result after each failure. Default to at most two repair attempts for the same issue, stopping sooner when the same failure offers no new evidence. Continue independent work.
 - Review the final diff for changes to shared contracts, data, permissions, or deployments. Use the [cross-review guide](references/cross-review.md) when the user requests independent review or those areas change. Prefer a different tool, with a fresh Opus or Sol session as the fallback.
+- In multi-session work, every commit that changes code that runs (product code, checks whose numbers drive decisions, hooks, tools) gets the planner's review and an independent cross-review. Do not skip it to save quota. Commits that change only images, assets, docs, or non-code data need neither.
 - Have reviewers inspect the change and verification evidence read-only. Confirm each finding, apply warranted changes, and rerun affected checks. Record required review as unverified when no independent reviewer is available.
 
 ## Completion and handoff
@@ -49,6 +63,7 @@ Use project instructions, established tools, and the permissions already granted
 ## Commit and push
 
 - Commit and push finished work without a separate request. Commit only the task's changes and verify the remote branch before reporting success. The plugin's `auto_commit_push` Stop hook commits remaining changes and pushes local commits when the turn ends.
+- When `WORKING.md` declares lanes, only the lane 1 session commits, staging its files by name. The Stop hook then pushes local commits without committing.
 - Opening a PR or MR still needs an explicit request in the current message, and a push request does not open one.
 
 See [source techniques](references/source-skills.md) for the ten source skills and [hooks](references/hook-recommendations.md) for what the installed hooks check.

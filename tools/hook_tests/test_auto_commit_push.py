@@ -120,6 +120,32 @@ class AutoCommitPushTest(unittest.TestCase):
         self.assertEqual(self.remote_rev("feature"), head)
         self.assertEqual(git(self.repo, "rev-parse", "@{upstream}").strip(), head)
 
+    def test_lanes_in_working_file_skip_the_commit_but_push(self):
+        (self.repo / "WORKING.md").write_text("# Who is working\n\n## Lane 1: build\n\n(none)\n", encoding="utf-8")
+        git(self.repo, "add", "WORKING.md")
+        git(self.repo, "commit", "-q", "-m", "lanes")
+        head = git(self.repo, "rev-parse", "HEAD").strip()
+        (self.repo / "other-session.txt").write_text("not mine\n", encoding="utf-8")
+        (self.repo / "README.md").write_text("edited\n", encoding="utf-8")
+        git(self.repo, "add", "README.md")
+        dry = self.run_hook("--dry-run")
+        self.assertIn("nothing would be committed", dry.stdout)
+        result = self.run_hook()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(git(self.repo, "rev-parse", "HEAD").strip(), head)
+        self.assertEqual(self.remote_rev("refs/heads/main"), head)
+        status = git(self.repo, "status", "--porcelain")
+        self.assertIn("M  README.md", status)
+        self.assertIn("?? other-session.txt", status)
+
+    def test_working_file_without_lanes_commits_as_usual(self):
+        (self.repo / "WORKING.md").write_text("# Notes\n", encoding="utf-8")
+        before = git(self.repo, "rev-parse", "HEAD").strip()
+        self.run_hook()
+        head = git(self.repo, "rev-parse", "HEAD").strip()
+        self.assertNotEqual(head, before)
+        self.assertEqual(self.remote_rev("refs/heads/main"), head)
+
     def test_push_failure_is_reported_not_fatal(self):
         git(self.repo, "remote", "set-url", "origin", str(self.tmp / "missing.git"))
         (self.repo / "note.txt").write_text("n\n", encoding="utf-8")
