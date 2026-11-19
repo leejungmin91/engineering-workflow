@@ -239,10 +239,25 @@ def board_facts(content, origin):
     return nodes, links
 
 
+def about(fields, origin):
+    home = origin["app"].split(":", 1)[1]
+    target = fields.get("app")
+    if target in (None, "", {}):
+        return home, home
+    if not isinstance(target, str) or target not in origin.get("known", ()):
+        raise ValueError(f"app {target!r} is not in the registry config")
+    return home, target
+
+
+def short(commit):
+    return commit.lower()[:7] if re.fullmatch(r"[0-9a-fA-F]{7,40}", commit) else commit
+
+
 def record_facts(content, origin):
     fields, body = frontmatter(content)
-    app, name = origin["app"], origin["app"].split(":", 1)[1]
-    key = f"{name}/{fields['id']}"
+    home, name = about(fields, origin)
+    app = f"app:{name}"
+    key = f"{home}/{fields['id']}"
     me = f"record:{key}"
     nodes = [node("record", key, name=fields.get("title") or fields["id"], text=body[:BODY_LIMIT],
                   date=str(fields["id"])[:10] if re.match(r"\d{4}-\d{2}-\d{2}", str(fields["id"])) else None)]
@@ -254,30 +269,33 @@ def record_facts(content, origin):
     links.extend(link(me, "RAN_ON", f"model:{item}") for item in listed(fields.get("model")))
     links.extend(link(me, "CONCERNS", reference(item, "skill")) for item in listed(fields.get("concerns")))
     reviewer, _, verdict = (fields.get("review") or "").partition(":")
-    for commit in [item[:7] if re.fullmatch(r"[0-9a-f]{8,40}", item) else item for item in listed(fields.get("commits"))]:
+    commits = list(dict.fromkeys(short(item) for item in listed(fields.get("commits"))))
+    for commit in commits:
         nodes.append(node("commit", f"{name}/{commit}", name=commit))
         links.append(link(me, "PRODUCED", f"commit:{name}/{commit}"))
         if reviewer.strip():
             links.append(link(f"commit:{name}/{commit}", "REVIEWED_BY", f"model:{reviewer.strip()}",
                               result=verdict.strip()))
-    for decision in listed(fields.get("decisions")):
+    for decision in dict.fromkeys(listed(fields.get("decisions"))):
         decided = f"{name}/{slug(decision)}"
         nodes.append(node("decision", decided, name=decision, state="settled"))
         links.append(link(f"decision:{decided}", "IN", app))
         if task:
             links.append(link(f"decision:{decided}", "AFFECTS", task))
+        links.extend(link(f"decision:{decided}", "AFFECTS", f"commit:{name}/{commit}") for commit in commits)
     return nodes, links
 
 
 def asset_facts(content, origin):
     fields, body = frontmatter(content)
-    app, name = origin["app"], origin["app"].split(":", 1)[1]
-    key = f"{name}/{fields['id']}"
+    home, name = about(fields, origin)
+    app = f"app:{name}"
+    key = f"{home}/{fields['id']}"
     me = f"asset:{key}"
     nodes = [node("asset", key, name=fields["id"], file=fields.get("file"), text=body[:BODY_LIMIT])]
     links = [link(me, "IN", app)]
     if fields.get("version_of"):
-        links.append(link(me, "VERSION_OF", f"asset:{name}/{fields['version_of']}"))
+        links.append(link(me, "VERSION_OF", f"asset:{home}/{fields['version_of']}"))
     if fields.get("source"):
         origin_key = slug(fields["source"])
         nodes.append(node("source", origin_key, name=fields["source"], license=fields.get("license")))
@@ -288,6 +306,9 @@ def asset_facts(content, origin):
         nodes.append(node("decision", decided, name=fields["approved_by"], state="settled"))
         links.append(link(f"decision:{decided}", "IN", app))
         links.append(link(f"decision:{decided}", "APPROVED", me))
+    for commit in dict.fromkeys(map(short, listed(fields.get("commits")))):
+        nodes.append(node("commit", f"{name}/{commit}", name=commit))
+        links.append(link(f"commit:{name}/{commit}", "PRODUCED", me))
     return nodes, links
 
 
@@ -528,6 +549,7 @@ def discover(config, deadline=None):
     apps = [(item["name"], Path(item["path"])) for item in config.get("apps", [])]
     every = [f"app:{name}" for name, _ in apps]
     machines = {item["name"]: item.get("machine") or config.get("machine") for item in config.get("apps", [])}
+    known = sorted(name for name, _ in apps)
     ignores = {item["name"]: list(item.get("ignore") or []) for item in config.get("apps", [])}
     sources = []
 
@@ -539,9 +561,9 @@ def discover(config, deadline=None):
         app = f"app:{name}"
         add(root / ".harness" / "board.json", "board", app=app)
         for path in sorted((root / ".harness" / "records").glob("*.md")) if (root / ".harness" / "records").is_dir() else []:
-            add(path, "record", app=app)
+            add(path, "record", app=app, known=known)
         for path in sorted((root / ".harness" / "assets").glob("*.md")) if (root / ".harness" / "assets").is_dir() else []:
-            add(path, "asset", app=app)
+            add(path, "asset", app=app, known=known)
         add(root / "WORKING.md", "working", app=app, machine=machines.get(name))
         for relative in credit_files(root, ignores.get(name, []), deadline):
             add(root / relative, "credits", app=app, folder=str(Path(relative).parent.as_posix()).strip("."))

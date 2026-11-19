@@ -76,6 +76,7 @@ def show_lineage(rows):
                           f"license {row['license']}" if row["license"] else None,
                           f"made by {', '.join(row['made_by'])}" if row["made_by"] else None,
                           f"approved: {'; '.join(row['approved_by'])}" if row["approved_by"] else None))
+        lines += ["  " * row["step"] + f"  made in {commit}" for commit in row.get("commits") or []]
     return lines
 
 

@@ -132,7 +132,7 @@ def prepare(store):
 
 def stated(files):
     props, kinds, sources = {}, {}, {}
-    for path in sorted(files):
+    for path in sorted(files, key=lambda path: (path.startswith("git:"), path)):
         for item in files[path]["nodes"]:
             props.setdefault(item["id"], {}).update(flat(item))
             kinds[item["id"]] = item["type"]
@@ -366,9 +366,10 @@ def lineage(store, asset_id):
     return store.run(
         f"MATCH p = (a:{n} {{id: $id}})-[:VERSION_OF*0..20]->(v:{n}) WITH v, length(p) AS step "
         f"OPTIONAL MATCH (v)-[f:FROM]->(s:{n}) OPTIONAL MATCH (v)-[:MADE_BY]->(m:{n}) "
-        f"OPTIONAL MATCH (d:{n})-[:APPROVED]->(v) "
+        f"OPTIONAL MATCH (d:{n})-[:APPROVED]->(v) OPTIONAL MATCH (c:{n}:Commit)-[:PRODUCED]->(v) "
         "RETURN step, v.id AS id, v.file AS file, s.name AS source, f.license AS license, "
-        "collect(DISTINCT m.name) AS made_by, collect(DISTINCT d.name) AS approved_by ORDER BY step", id=asset_id)
+        "collect(DISTINCT m.name) AS made_by, collect(DISTINCT d.name) AS approved_by, "
+        "collect(DISTINCT c.id + '  ' + coalesce(c.name, '')) AS commits ORDER BY step", id=asset_id)
 
 
 def needs(store, node_id):

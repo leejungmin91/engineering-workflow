@@ -41,7 +41,7 @@ python3 scripts/registry.py sync --rebuild
 | `neighbors` | Everything linked to the node in either direction, with link properties |
 | `impact` | Skills that need the node, the apps that reach it and how, their open task counts, and records that name it |
 | `spread` | What the record concerns, the apps that reach it and have no record for it, and the apps that do |
-| `lineage` | The asset's earlier versions with source, license, maker, and approval |
+| `lineage` | The asset's earlier versions with source, license, maker, approval, and the commits that made it |
 | `needs` | Everything the skill requires, step by step, marking what no scanned file defines |
 | `latest` | The skill at the end of the supersedes chain |
 | `unused` | Skills no app reaches, and skills no work record names |

@@ -49,11 +49,12 @@ The registry answers questions that span many projects: which skill fits this pr
 | Skill | SUPERSEDES | Skill | Skill frontmatter `supersedes` |
 | Skill | PREFERS | Model | Skill frontmatter `model`, `effort`, `fallback` |
 | Task | AFTER | Task | Board `after` |
-| Task | IN | App | The board's repository |
+| Task | IN | App | The board's repository, or the app a record's `app:` names for the task it gives |
 | Decision | IN | App | Open decisions on the board, settled ones in records |
 | Decision | AFFECTS | Task | Record frontmatter `decisions` |
+| Decision | AFFECTS | Commit | Record frontmatter `decisions` and `commits` together |
 | Record | FOR | Task | Record frontmatter `task` |
-| Record | IN | App | The record's repository |
+| Record | IN | App | The record's repository, or the app its `app:` names |
 | Record | USED | Skill | Record frontmatter `skills` |
 | Record | RAN_ON | Model | Record frontmatter `model` |
 | Record | PRODUCED | Commit | Record frontmatter `commits`, cut to 7 characters so it meets the commit from git |
@@ -66,6 +67,7 @@ The registry answers questions that span many projects: which skill fits this pr
 | Asset | UNDER | License | A credit row's license column, else the license named in the credit file's first paragraph |
 | Asset | MADE_BY | Model | Asset frontmatter `made_by` |
 | Decision | APPROVED | Asset | Asset frontmatter `approved_by` |
+| Commit | PRODUCED | Asset | Asset frontmatter `commits` |
 | Session | HOLDS | Task | `WORKING.md` bullets under a `## Lane <n>` heading that start with a session name. The task is the rest of the line, with `lane` set to the heading |
 | Session | ON | Machine | Every session of an app, when the config names a machine |
 | Rule | APPLIES_TO | App | The file the rule is in. A rule in the user folder applies to every app |
@@ -154,6 +156,8 @@ Per app, optional: `"history": {"max": 3000, "since": "2026-01-01"}` or `false`,
 
 The git history of each app is read with `git log --branches --no-merges` (no locks are taken), newest first, up to `history.max` commits (default 3000) and from `history.since` when set; `"history": false` turns it off for that app. A commit not reachable from `origin/HEAD` (else `HEAD`) gets `merged: false` and the branch it is on. Commits are grouped by month into entries named `git:<app>/<YYYY-MM>`, so a new commit rewrites one month and a merge rewrites the months of the merged branch. Trailers such as `Co-Authored-By` are dropped and bodies are cut to 1500 characters. A folder without `.git` has no history. All git calls of one scan share a 2 second budget. Each good read is saved on this machine (config `cache`, default `~/.cache/engineering-workflow/registry-history/`), and when git fails or runs out of time the scan uses the last good read and reports `git:<app>` as skipped.
 
+A record or asset file may say `app: <name>` to be about another app in the config, for example a private repository that keeps notes on an app whose repository other sessions own. Its tasks, decisions, and commits then belong to that app, while the record or asset keeps the id of the folder it is in. A name that is not in the config makes the file an error.
+
 Every file hash includes the scanner's own hash, so after an upgrade every file is read again once.
 
 Credit files are the `CREDITS.md` files git tracks in an app, minus those under a folder whose name starts with a dot and those matching the app's `ignore` globs (`"ignore": ["build/*"]`). Each table row and each ``- `file`: text`` bullet names one or more files in backticks; each becomes an asset in a group named after the credit file's folder. The license comes from the row's license column, else from the license the file's first paragraph names. A row with neither has no license and reads as `check`. Licenses are recognised by name: CC0 and public domain (`no`), CC BY in any form (`credit`), OFL, Apache, and MIT (`notice`).
@@ -170,7 +174,7 @@ A store adapter keeps the hash of every file it loaded. On the next run it repla
 | `neighbors <node>` | What is directly linked to this | One step in every direction |
 | `impact <skill or tool>` | What is affected if this changes | REQUIRES and USES backwards to apps, then open tasks and releases |
 | `spread <record>` | Which other apps need the same fix | CONCERNS to the skill or tool, then USES backwards, minus apps with a matching record |
-| `lineage <asset>` | Where did this asset come from and who approved it | VERSION_OF repeatedly, then FROM, MADE_BY, APPROVED |
+| `lineage <asset>` | Where did this asset come from, who approved it, and which commits made it | VERSION_OF repeatedly, then FROM, MADE_BY, APPROVED, PRODUCED |
 | `needs <skill>` | What must be enabled for this skill to work | REQUIRES repeatedly |
 | `latest <skill>` | What replaced this skill | SUPERSEDES backwards repeatedly |
 | `dupes <description>` | Does a similar skill already exist | Text search over skill descriptions |

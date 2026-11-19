@@ -68,6 +68,10 @@ class OfflineTests(unittest.TestCase):
         props, kinds, sources = graph.stated(files)
         self.assertEqual(props["skill:x"], {"name": "x", "text": "from b", "model": "m"})
         self.assertEqual(sources["skill:x"], ["a.md", "b.md"])
+        commits = {"git:game/2026-11": {"nodes": [{"id": "commit:game/abc1234", "type": "commit", "name": "Real subject"}]},
+                   "work/shop/.harness/assets/a.md": {"nodes": [{"id": "commit:game/abc1234", "type": "commit",
+                                                                 "name": "abc1234"}]}}
+        self.assertEqual(graph.stated(commits)[0]["commit:game/abc1234"]["name"], "Real subject")
         rows = [{"id": "skill:k", "props": {"name": "k", "text": "훅을 고친다", "keywords": "앱에서"}},
                 {"id": "skill:e", "props": {"name": "e", "text": "English only"}}]
         with mock.patch.dict(os.environ):
@@ -93,6 +97,10 @@ class OfflineTests(unittest.TestCase):
         self.assertEqual(registry.show_needs([{"id": "tool:mcp:a", "step": 1, "known": False},
                                               {"id": "skill:b", "step": 2, "known": True}]),
                          ["tool:mcp:a  (not found in any scanned file)", "  skill:b"])
+        self.assertEqual(registry.show_lineage([{"step": 0, "id": "asset:a/face", "file": "f.png", "source": None,
+                                                 "license": None, "made_by": [], "approved_by": ["A"],
+                                                 "commits": ["commit:a/abc1234  Subject"]}]),
+                         ["asset:a/face  f.png  approved: A", "  made in commit:a/abc1234  Subject"])
 
 
 @unittest.skipUnless(LIVE, "set HARNESS_NEO4J_TEST=1 with a local graph server to run")
@@ -227,6 +235,7 @@ class LiveTests(unittest.TestCase):
         self.assertEqual(self.ids(chain), ["asset:shop/hero-v3", "asset:shop/hero-v2"])
         self.assertEqual(chain[0]["approved_by"], ["2026-11-17 portrait review"])
         self.assertEqual((chain[1]["source"], chain[1]["license"]), ("Stock site", "CC BY 4.0"))
+        self.assertEqual(chain[0]["commits"], [])
         needed = graph.needs(self.store, "skill:store-release")
         self.assertEqual({row["id"]: row["known"] for row in needed},
                          {"tool:mcp:app-store": False, "skill:engineering-workflow": False})
@@ -266,6 +275,14 @@ class LiveTests(unittest.TestCase):
         needed = graph.licenses(self.store, "app:game", attribution=True)
         self.assertEqual([row["group"] for row in needed], ["icons", "ui"])
         self.assertEqual(graph.licenses(self.store, "app:game", group="audio", attribution=True), [])
+
+    def test_lineage_lists_the_commits_that_made_an_asset(self):
+        fixtures.write(self.fixture.shop / ".harness" / "assets" / "face.md",
+                       "---\nid: face\napp: game\nfile: Portraits/player.png\ncommits: \"32126ec\"\n---\n")
+        registry.refresh(self.store, str(self.config))
+        chain = graph.lineage(self.store, "asset:shop/face")
+        self.assertEqual(chain[0]["commits"], ["commit:game/32126ec  32126ec"])
+        self.assertEqual(self.ids(graph.neighbors(self.store, "app:game", "asset")), ["asset:shop/face"])
 
     def test_command_prints_few_lines_and_reports_unknown_names(self):
         base = ["--space", SPACE, "--config", str(self.config)]

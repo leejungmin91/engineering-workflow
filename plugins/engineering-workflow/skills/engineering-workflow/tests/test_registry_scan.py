@@ -414,6 +414,40 @@ class ScanTests(unittest.TestCase):
         self.assertIn(("record:shop/2026-11-19-long", "PRODUCED", "commit:shop/68d5461"), links)
         self.assertIn("commit:shop/abc1234", nodes)
 
+    def test_records_and_assets_can_be_about_another_listed_app(self):
+        write(self.shop / ".harness" / "records" / "2026-11-20-borders.md",
+              "---\nid: 2026-11-20-borders\ntitle: Borders off\napp: game\ntask: T4\ncommits: \"8f153f9e, 594e3d0, 8f153f9\"\n"
+              "decisions: \"No borders on the HUD, No borders on the HUD\"\n---\nWhy.\n")
+        write(self.shop / ".harness" / "assets" / "face.md",
+              "---\nid: face\napp: game\nfile: Portraits/player.png\nversion_of: face-old\ncommits: \"32126EC9, 32126ec\"\n"
+              "approved_by: \"Portrait A\"\n---\n")
+        write(self.shop / ".harness" / "records" / "2026-11-20-stray.md",
+              "---\nid: 2026-11-20-stray\ntitle: Stray\napp: nowhere\n---\nText\n")
+        write(self.shop / ".harness" / "assets" / "stray.md", "---\nid: stray\napp: nowhere\n---\n")
+        write(self.shop / ".harness" / "records" / "2026-11-20-blank.md",
+              "---\nid: 2026-11-20-blank\ntitle: Blank\napp:\n---\nText\n")
+        files, nodes, links = self.facts()
+        record = "record:shop/2026-11-20-borders"
+        self.assertIn((record, "IN", "app:game"), links)
+        self.assertIn((record, "FOR", "task:game/T4"), links)
+        self.assertIn((record, "PRODUCED", "commit:game/8f153f9"), links)
+        self.assertIn(("decision:game/no-borders-on-the-hud", "AFFECTS", "commit:game/594e3d0"), links)
+        self.assertIn(("decision:game/no-borders-on-the-hud", "AFFECTS", "task:game/T4"), links)
+        self.assertIn(("asset:shop/face", "IN", "app:game"), links)
+        self.assertIn(("asset:shop/face", "VERSION_OF", "asset:shop/face-old"), links)
+        self.assertIn(("commit:game/32126ec", "PRODUCED", "asset:shop/face"), links)
+        self.assertIn(("decision:game/portrait-a", "APPROVED", "asset:shop/face"), links)
+        self.assertIn("error", files[str(self.shop / ".harness" / "records" / "2026-11-20-stray.md")])
+        self.assertIn("error", files[str(self.shop / ".harness" / "assets" / "stray.md")])
+        self.assertIn(("record:shop/2026-11-20-blank", "IN", "app:shop"), links)
+        raw = files[str(self.shop / ".harness" / "records" / "2026-11-20-borders.md")]["links"]
+        self.assertEqual(sum(1 for item in raw if item["type"] == "AFFECTS" and item["to"].startswith("commit:")), 2)
+        raw = files[str(self.shop / ".harness" / "assets" / "face.md")]["links"]
+        self.assertEqual(sum(1 for item in raw if item["type"] == "PRODUCED"), 1)
+        self.assertIn(("commit:game/32126ec", "PRODUCED", "asset:shop/face"), links)
+        self.assertNotIn(("commit:game/32126EC", "PRODUCED", "asset:shop/face"), links)
+        self.assertIn(("record:shop/2026-11-19-refund-rounding", "IN", "app:shop"), links)
+
     def test_working_file_without_sessions_states_nothing(self):
         write(self.game / "WORKING.md", "free text\n\n## Lane 1\n\n- build: work\n")
         files, nodes, _ = self.facts()
@@ -434,7 +468,9 @@ class ScanTests(unittest.TestCase):
         after, _, _ = self.facts()
         changed = {path for path in before if before[path]["hash"] != after[path]["hash"]}
         self.assertEqual(changed, {"config:apps", str(self.user / "CLAUDE.md"), str(self.user / "settings.json"),
-                                   str(self.user / "plugins" / "installed_plugins.json")})
+                                   str(self.user / "plugins" / "installed_plugins.json"),
+                                   str(self.shop / ".harness" / "records" / "2026-11-19-refund-rounding.md"),
+                                   str(self.shop / ".harness" / "assets" / "hero-v3.md")})
 
     def test_a_broken_file_is_reported_and_the_rest_is_read(self):
         write(self.shop / ".harness" / "board.json", "{")
