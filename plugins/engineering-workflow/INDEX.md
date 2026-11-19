@@ -31,6 +31,7 @@
 | `skills/engineering-workflow/scripts/registry_scan.py` | 등록부 훑기. 스킬·플러그인·훅·설정·보드·작업 기록·에셋 기록·규칙 제목·용어 사전을 읽어 파일별 점과 선, 해시로 출력한다. DB 없이 돈다 (`docs/registry-design.md`) |
 | `skills/engineering-workflow/scripts/registry.py` | 등록부 조회 명령: `find`·`dupes`·`neighbors`·`impact`·`spread`·`lineage`·`needs`·`latest`·`unused`·`status`·`sync`. 조회 전에 바뀐 파일만 다시 색인한다. 선택 사항이며 로컬 Neo4j가 필요하다 (`references/registry.md`) |
 | `skills/engineering-workflow/scripts/registry_neo4j.py` | 등록부 저장소 연결. 표준 라이브러리로 Neo4j HTTP 질의 API를 쓴다. 주소와 암호는 환경 변수나 키체인에서 읽는다 |
+| `skills/engineering-workflow/scripts/registry_text.py` | 등록부의 한국어 처리. 조사·어미 떼기, 한영 낱말표, 색인용 어간 |
 | `skills/engineering-workflow/scripts/check_record.py` | 완료 기록의 검사 결과·작업본·의존성을 검사한다 |
 | `skills/engineering-workflow/scripts/lane_guard.py` | 선택형 `PreToolUse` 훅. 구현 담당 세션만 지키는 경로를 고치게 하고 전부 스테이징을 막는다 (프로젝트에 복사해서 등록, `references/multi-session.md`) |
 | `skills/engineering-workflow/templates/multi-session/WORKING.md` | 세션 역할, 구현 담당, 사용자 결정 대기 목록을 적는 틀 |

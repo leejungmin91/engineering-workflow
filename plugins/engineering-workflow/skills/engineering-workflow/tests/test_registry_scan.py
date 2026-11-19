@@ -23,6 +23,7 @@ metadata:
   effort: "medium"
   fallback: "opus"
   author: someone
+  keywords: "스토어 심사, 출시"
 ---
 
 # Store release
@@ -101,6 +102,7 @@ class ScanTests(unittest.TestCase):
         skill = nodes["skill:store-release"]
         self.assertEqual(skill["text"], "Use when preparing a store release: build numbers and review notes.")
         self.assertEqual(skill["model"], "sonnet")
+        self.assertEqual(skill["keywords"], "스토어 심사, 출시")
         self.assertTrue(skill["path"].endswith("SKILL.md"))
         for key in (("app:shop", "HAS", "skill:store-release"), ("skill:store-release", "REQUIRES", "tool:mcp:app-store"),
                     ("skill:store-release", "REQUIRES", "skill:engineering-workflow"),
@@ -116,6 +118,7 @@ class ScanTests(unittest.TestCase):
         self.assertEqual(nodes["plugin:flow"]["version"], "2.0.0")
         self.assertEqual(links[("plugin:flow", "PROVIDES", "tool:hook:auto_commit")]["events"], ["Stop"])
         self.assertIn(("plugin:flow", "PROVIDES", "tool:hook:board"), links)
+        self.assertEqual(nodes["tool:hook:board"]["text"], "hook board on SessionStart")
         self.assertEqual(links[("app:shop", "USES", "plugin:flow")]["scope"], "user")
         self.assertIn(("app:shop", "DISABLES", "plugin:old"), links)
         self.assertEqual(links[("app:game", "INSTALLED", "plugin:flow")]["version"], "1.0.0")

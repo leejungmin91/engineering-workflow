@@ -6,6 +6,8 @@ import subprocess
 import urllib.error
 import urllib.request
 
+import registry_text
+
 NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*")
 RESERVED = {"id", "type", "from", "to"}
 TYPES = ("app", "plugin", "skill", "tool", "model", "task", "decision", "record", "commit", "asset", "source", "rule",
@@ -29,7 +31,7 @@ class Store:
         token = base64.b64encode(f"{user}:{password}".encode("utf-8")).decode("ascii")
         self.headers = {"Content-Type": "application/json", "Accept": "application/json",
                         "Authorization": f"Basic {token}"}
-        self.node, self.file, self.index = space, f"{space}File", f"{space.lower()}_text"
+        self.node, self.file, self.index = space, f"{space}File", f"{space.lower()}_search"
 
     def run(self, statement, **parameters):
         body = json.dumps({"statement": statement, "parameters": parameters}).encode("utf-8")
@@ -113,7 +115,9 @@ def prepare(store):
     n, f = store.node, store.file
     store.run(f"CREATE CONSTRAINT {n.lower()}_id IF NOT EXISTS FOR (n:{n}) REQUIRE n.id IS UNIQUE")
     store.run(f"CREATE CONSTRAINT {f.lower()}_path IF NOT EXISTS FOR (f:{f}) REQUIRE f.path IS UNIQUE")
-    store.run(f"CREATE FULLTEXT INDEX {store.index} IF NOT EXISTS FOR (n:{n}) ON EACH [n.name, n.text, n.means] "
+    store.run(f"DROP INDEX {n.lower()}_text IF EXISTS")
+    store.run(f"CREATE FULLTEXT INDEX {store.index} IF NOT EXISTS FOR (n:{n}) "
+              "ON EACH [n.name, n.text, n.means, n.keywords, n.terms] "
               "OPTIONS {indexConfig: {`fulltext.analyzer`: 'cjk'}}")
     store.run("CALL db.awaitIndexes(30)")
 
@@ -125,6 +129,10 @@ def stated(files):
             props.setdefault(item["id"], {}).update(flat(item))
             kinds[item["id"]] = item["type"]
             sources.setdefault(item["id"], []).append(path)
+    for values in props.values():
+        terms = registry_text.index_terms(" ".join(str(values.get(key, "")) for key in ("name", "text", "keywords")))
+        if terms:
+            values["terms"] = terms
     return props, kinds, sources
 
 
@@ -205,9 +213,15 @@ def sync(store, scanned, rebuild=False):
             "skipped": [path for path, entry in files.items() if entry.get("error")], **counts(store)}
 
 
-def lucene(words):
+def quoted(token):
+    return '"' + token.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def lucene(words, also=()):
     tokens = [token for word in words for token in word.split()]
-    return " OR ".join('"' + token.replace("\\", "\\\\").replace('"', '\\"') + '"' for token in tokens)
+    strong = [quoted(token) + ("^3" if also else "") for token in dict.fromkeys(tokens)]
+    weak = [quoted(token) for token in dict.fromkeys(also) if token not in tokens]
+    return " OR ".join(strong + weak)
 
 
 def resolve(store, name):
@@ -224,23 +238,30 @@ def resolve(store, name):
 
 def find(store, words, kind=None, limit=5):
     n = store.node
-    terms = store.run(f"MATCH (t:{n}:Term) WHERE t.name IN $words OPTIONAL MATCH (t)-[:ALIAS_OF]->(x:{n}) "
-                      "RETURN DISTINCT t.means AS means, x.id AS id, x.type AS type, x.name AS name, x.path AS path",
-                      words=words)
+    words = registry_text.query_words(words)
+    phrase = " ".join(words)
+    rows = store.run(f"MATCH (t:{n}:Term) WHERE $phrase CONTAINS t.name OPTIONAL MATCH (t)-[:ALIAS_OF]->(x:{n}) "
+                     "RETURN DISTINCT t.name AS term, t.means AS means, x.id AS id, x.type AS type, x.name AS name, "
+                     "x.path AS path", phrase=phrase)
+    terms = [row for row in rows if any(registry_text.names(word, row["term"]) for word in words)
+             or (" " in row["term"] and row["term"] in phrase)]
     hits, seen = [], set()
     for row in terms:
         if row["id"] and row["id"] not in seen and (not kind or row["type"] == kind):
             hits.append({"id": row["id"], "type": row["type"], "name": row["name"], "path": row["path"], "score": None})
             seen.add(row["id"])
-    extra = [row["means"] for row in terms if row["means"] and not row["id"]]
-    query = lucene(list(words) + [word for means in extra for word in means.split()])
+    meanings = [word for row in terms if row["means"] and not row["id"] for word in row["means"].split()]
+    query = lucene(words, [form for form in registry_text.expand(words) + meanings if form not in words])
     if query:
         rows = store.run(
             f"CALL db.index.fulltext.queryNodes('{store.index}', $q) YIELD node, score "
             "WHERE ($kind IS NULL OR node.type = $kind) AND node.type <> 'term' "
             "RETURN node.id AS id, node.type AS type, node.name AS name, node.path AS path, "
             "round(score, 2) AS score LIMIT $limit", q=query, kind=kind, limit=limit + len(seen))
-        hits.extend(row for row in rows if row["id"] not in seen)
+        for row in rows:
+            if row["id"] not in seen:
+                hits.append(row)
+                seen.add(row["id"])
     return hits[:limit]
 
 

@@ -25,6 +25,7 @@ class OfflineTests(unittest.TestCase):
     def test_search_words_are_escaped(self):
         self.assertEqual(graph.lucene(["a+b", "x:y", " ", "plain two"]), '"a+b" OR "x:y" OR "plain" OR "two"')
         self.assertEqual(graph.lucene(["AND", 'say "hi"', "back\\slash"]), '"AND" OR "say" OR "\\"hi\\"" OR "back\\\\slash"')
+        self.assertEqual(graph.lucene(["훅을"], ["훅", "hook", "훅을"]), '"훅을"^3 OR "훅" OR "hook"')
 
     def test_names_that_reach_a_query_string_are_checked(self):
         self.assertEqual(graph.label("skill"), "Skill")
@@ -65,6 +66,8 @@ class OfflineTests(unittest.TestCase):
         props, kinds, sources = graph.stated(files)
         self.assertEqual(props["skill:x"], {"name": "x", "text": "from b", "model": "m"})
         self.assertEqual(sources["skill:x"], ["a.md", "b.md"])
+        korean = {"k.md": {"nodes": [{"id": "skill:k", "type": "skill", "name": "k", "text": "훅을 고친다", "keywords": "앱에서"}]}}
+        self.assertEqual(graph.stated(korean)[0]["skill:k"]["terms"].split(), ["훅", "앱"])
 
     def test_unreachable_server_exits_2_without_a_traceback(self):
         errors = io.StringIO()
@@ -93,6 +96,8 @@ class LiveTests(unittest.TestCase):
         self.addCleanup(fixture.doCleanups)
         fixtures.write(fixture.game / ".claude" / "skills" / "pay" / "SKILL.md",
                        "---\nname: pay\ndescription: Take payments\nmetadata:\n  requires: \"mcp:app-store\"\n---\n")
+        fixtures.write(fixture.game / ".claude" / "skills" / "korean" / "SKILL.md",
+                       "---\nname: hook-care\ndescription: 훅을 고치기 전에 영향을 확인한다\nmetadata:\n  keywords: \"잠금장치, 안전핀\"\n---\n")
         fixtures.write(fixture.shop / ".harness" / "assets" / "hero-v2.md",
                        "---\nid: hero-v2\nfile: \"Assets/Art/hero_old.png\"\nsource: \"Stock site\"\nlicense: \"CC BY 4.0\"\n---\n")
         self.fixture = fixture
@@ -154,6 +159,28 @@ class LiveTests(unittest.TestCase):
         self.assertEqual(graph.resolve(self.store, "눈밥"), ["app:shop"])
         self.assertEqual(self.ids(graph.find(self.store, ["눈밥"])).count("app:shop"), 1)
 
+    def test_find_handles_korean_particles_keywords_and_english_text(self):
+        self.assertEqual(self.ids(graph.find(self.store, ["훅"], "skill"))[0], "skill:hook-care")
+        self.assertEqual(self.ids(graph.find(self.store, ["훅이", "뭐야"], "skill"))[0], "skill:hook-care")
+        self.assertEqual(self.ids(graph.find(self.store, ["안전핀"]))[0], "skill:hook-care")
+        self.assertIn("record:shop/2026-11-19-refund-rounding", self.ids(graph.find(self.store, ["환불했던", "작업"])))
+        self.assertEqual(self.ids(graph.find(self.store, ["스토어", "릴리즈를", "준비"], "skill"))[0], "skill:store-release")
+        self.assertEqual(self.ids(graph.find(self.store, ["눈밥에서", "쓰는", "것"]))[0], "app:shop")
+
+    def test_glossary_terms_match_whole_words_and_long_queries_are_capped(self):
+        extra = Path(self.fixture.tmp.name) / "glossary3.txt"
+        fixtures.write(extra, "app = app:game\n계속 진행 = rule:keep-going\n")
+        scanned = registry.registry_scan.scan(json.loads(self.config.read_text(encoding="utf-8")))
+        scanned["files"][str(extra)] = registry.registry_scan.scan({"apps": [], "glossary": str(extra)})["files"][str(extra)]
+        graph.sync(self.store, scanned)
+        self.assertNotIn("app:game", self.ids(graph.find(self.store, ["happy"])))
+        self.assertEqual(self.ids(graph.find(self.store, ["app"]))[0], "app:game")
+        self.assertEqual(self.ids(graph.find(self.store, ["계속", "진행", "규칙"]))[0], "rule:keep-going")
+        many = graph.find(self.store, [f"w{number}" for number in range(5000)] + ["refund"])
+        self.assertIsInstance(many, list)
+        ids = self.ids(graph.find(self.store, ["refund", "store", "release"], limit=20))
+        self.assertEqual(len(ids), len(set(ids)))
+
     def test_find_uses_text_and_the_glossary(self):
         self.assertEqual(self.ids(graph.find(self.store, ["눈밥"]))[0], "app:shop")
         self.assertIn("record:shop/2026-11-19-refund-rounding", self.ids(graph.find(self.store, ["refund", "totals"])))
@@ -200,7 +227,7 @@ class LiveTests(unittest.TestCase):
         self.assertEqual(self.ids(graph.latest(self.store, "skill:pay")), ["skill:pay"])
         report = graph.unused(self.store)
         self.assertEqual(report["unreachable"], [])
-        self.assertEqual(self.ids(report["never_recorded"]), ["skill:flow", "skill:pay"])
+        self.assertEqual(self.ids(report["never_recorded"]), ["skill:flow", "skill:hook-care", "skill:pay"])
 
     def test_command_prints_few_lines_and_reports_unknown_names(self):
         base = ["--space", SPACE, "--config", str(self.config)]

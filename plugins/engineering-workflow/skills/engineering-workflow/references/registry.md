@@ -74,6 +74,18 @@ python3 scripts/registry.py sync --rebuild
 | `HARNESS_NEO4J_USER` | `neo4j` |
 | `HARNESS_NEO4J_PASSWORD` | macOS keychain item `harness-neo4j` |
 
-The store uses the HTTP query API and the standard library only. Text search uses the server's `cjk` analyzer, which matches Korean, Japanese, and Chinese by character pairs. Words in one language do not find text in another unless the glossary links them.
+The store uses the HTTP query API and the standard library only.
+
+## Korean and English
+
+Text search uses the server's `cjk` analyzer, which matches Korean, Japanese, and Chinese by character pairs. Three additions make Korean prompts find English text and one-syllable words:
+
+- Particles and common endings are removed from Korean words at index and query time, so `훅을` finds `훅`.
+- A built-in table of Korean engineering words adds English forms to the query, with plurals: `의존성` also searches `dependency` and `dependencies`.
+- The glossary file adds the user's own words. A line `눈밥 = app:shop` makes the word name that node, also in `눈밥에서`. A line `레그 = RAG` adds the meaning to the search. A term must match a whole word, or the start of a Korean word.
+
+A skill can list words nobody would guess from its description under `metadata.keywords`. The original words of a query weigh three times as much as the added forms. A query uses at most 24 words.
+
+This is word matching, not meaning. Two phrasings with no word in common do not find each other. Add the missing word to the glossary or to a skill's keywords when a search misses.
 
 The store tests need a server and run with `HARNESS_NEO4J_TEST=1`. They write under their own label and leave the real graph alone. CI runs only the tests that need no server.

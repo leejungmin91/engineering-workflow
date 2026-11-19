@@ -113,7 +113,8 @@ def skill_facts(content, origin):
     extra = fields.get("metadata") if isinstance(fields.get("metadata"), dict) else {}
     description = fields.get("description") if isinstance(fields.get("description"), str) else ""
     me = f"skill:{name.strip()}"
-    nodes = [node("skill", name.strip(), text=description, model=extra.get("model"), effort=extra.get("effort"))]
+    nodes = [node("skill", name.strip(), text=description, model=extra.get("model"), effort=extra.get("effort"),
+                  keywords=extra.get("keywords"))]
     owners = origin.get("owners") or ([origin["owner"]] if origin.get("owner") else [])
     links = [link(owner, origin["verb"], me, scope=origin.get("scope")) for owner in owners]
     for item in listed(extra.get("requires")):
@@ -145,7 +146,8 @@ def hooks_facts(content, origin):
                 scripts = re.findall(r"([\w.-]+)\.(?:sh|py|js|ts|rb)\b", command)
                 if scripts:
                     found.setdefault(scripts[-1], []).append(event)
-    nodes = [node("tool", f"hook:{name}", name=name, kind="hook") for name in sorted(found)]
+    nodes = [node("tool", f"hook:{name}", name=name, kind="hook",
+                  text=f"hook {name} on {', '.join(sorted(set(found[name])))}") for name in sorted(found)]
     links = [link(origin["owner"], "PROVIDES", f"tool:hook:{name}", events=sorted(set(events)))
              for name, events in sorted(found.items())] if origin.get("owner") else []
     return nodes, links
