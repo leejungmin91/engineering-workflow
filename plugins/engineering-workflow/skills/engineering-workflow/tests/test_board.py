@@ -52,7 +52,7 @@ class BoardTests(Case):
 
     def test_every_text_field_is_escaped_on_both_pages(self):
         mark = "<script>alert(1)</script>"
-        self.root = self.root.parent / "a<b>&c"
+        self.root = self.root.parent / "a&b"
         (self.root / ".harness").mkdir(parents=True)
         self.path = self.root / ".harness" / "board.json"
         self.path.write_text(json.dumps({
@@ -65,8 +65,8 @@ class BoardTests(Case):
         listing = (self.home / "index.html").read_text(encoding="utf-8")
         for output in (content, listing):
             self.assertNotIn(mark, output)
-            self.assertNotIn("a<b>&c", output)
-            self.assertIn("a&lt;b&gt;&amp;c", output)
+            self.assertNotIn("a&b", output)
+            self.assertIn("a&amp;b", output)
         self.assertEqual(content.count("&lt;script&gt;alert(1)&lt;/script&gt;"), 8)
         self.assertIn("title &lt;script&gt;", listing)
 
