@@ -20,7 +20,6 @@ MARKS = {"done": "✓", "doing": "▶", "todo": "○", "blocked": "✕", "parked
 BOARD = Path(".harness") / "board.json"
 WAITING = re.compile(r"^## Waiting for the user.*?$(.*?)(?=^## |\Z)", re.S | re.M)
 PAGE = re.compile(r"[A-Za-z0-9_.-]+\.html")
-SEEN = 50
 LABELS = {
     "en": {
         "progress": "Progress", "of": "of", "tasks": "tasks done", "doing": "In progress", "todo": "To do",
@@ -678,17 +677,22 @@ def launch(path):
         return
 
 
-def show_once(path, root, session):
+def show_when_work_starts(path, root, doing):
     marker = home() / f"{slug(root)}.opened"
+    current = True
     try:
-        seen = marker.read_text(encoding="utf-8").split("\n")
-    except OSError:
-        seen = None
-    if seen is not None and (not session or session in seen):
-        return False
-    launch(path)
-    write(marker, "\n".join(([session] if session else []) + (seen or [])[:SEEN - 1]))
-    return True
+        known = json.loads(marker.read_text(encoding="utf-8"))
+        current = isinstance(known, dict) and isinstance(known.get("doing"), list)
+        before = set(known["doing"]) if current else set(doing)
+    except (OSError, ValueError, TypeError):
+        current = False
+        before = set(doing) if marker.exists() else None
+    opened = before is None or bool(set(doing) - before)
+    if opened:
+        launch(path)
+    if before is None or not current or set(doing) != before:
+        write(marker, json.dumps({"doing": sorted(doing)}, ensure_ascii=False))
+    return opened
 
 
 def find_root(event):
@@ -729,8 +733,11 @@ def hook(event):
         output = publish(board_path, root)
     except Exception as error:
         return {"systemMessage": f"board: {BOARD.as_posix()} was not rendered: {type(error).__name__}: {error}"}
-    session = event.get("session_id")
-    show_once(output, root, session if isinstance(session, str) else "")
+    try:
+        doing = [task["id"] for task in load(board_path)["tasks"] if task["status"] == "doing"]
+    except (OSError, ValueError, KeyError, TypeError):
+        doing = []
+    show_when_work_starts(output, root, doing)
     if name == "SessionStart":
         return {"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": (
             f"Progress board: {BOARD.as_posix()} renders to {output}. Edit the JSON when a task changes state "

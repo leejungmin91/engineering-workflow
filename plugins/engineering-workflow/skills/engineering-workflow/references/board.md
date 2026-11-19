@@ -67,7 +67,7 @@ The plugin registers the same command on three events. Each does nothing when th
 | `PostToolUse` (`Write`, `Edit`, `MultiEdit`) | Renders again when the edited file is the board file |
 | `Stop` | Renders again at the end of the turn, which covers edits made through the shell |
 
-The page opens once per session, also when several sessions work in one project. A board created in the middle of a session opens on its first render. The browser is started detached, so it cannot hold the hook open. The hooks need `python3` on PATH and are skipped without it. They never block a prompt or a tool: an invalid board file is reported as a message and the previous page stays.
+The page opens in the browser the first time the project's board is drawn on the machine, and again only when a task newly goes to `doing`, so starting work brings it up and new sessions, turns, or edits do not. The tasks in progress at the last render are kept in `<project>.opened` beside the page. The browser is started detached, so it cannot hold the hook open. The hooks need `python3` on PATH and are skipped without it. They never block a prompt or a tool: an invalid board file is reported as a message and the previous page stays.
 
 | Environment variable | Effect |
 | --- | --- |

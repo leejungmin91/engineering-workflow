@@ -425,24 +425,41 @@ class HookTests(Case):
         board.hook(self.event("PostToolUse", tool_input={"file_path": str(real / "board.json")}))
         self.assertEqual(len(self.pages()), 1)
 
-    def test_page_opens_once_per_session_even_when_sessions_alternate(self):
-        self.save([task("a")])
+    def test_page_opens_on_the_first_render_and_when_a_task_starts_not_per_session(self):
+        self.save([task("a"), task("b")])
         with mock.patch.object(board, "launch") as launch:
             board.hook(self.event("SessionStart"))
-            board.hook(self.event("Stop"))
-            board.hook(self.event("PostToolUse", tool_input={"file_path": str(self.path)}))
             self.assertEqual(launch.call_count, 1)
-            for session in ("s2", "s1", "s2", "s1"):
+            for session in ("s2", "s1", "s3"):
+                board.hook(self.event("SessionStart", session_id=session))
                 board.hook(self.event("Stop", session_id=session))
+            self.assertEqual(launch.call_count, 1)
+            self.save([task("a", "doing"), task("b")])
+            board.hook(self.event("PostToolUse", tool_input={"file_path": str(self.path)}))
             self.assertEqual(launch.call_count, 2)
+            board.hook(self.event("SessionStart", session_id="s4"))
+            self.assertEqual(launch.call_count, 2)
+            self.save([task("a", "done"), task("b")])
+            board.hook(self.event("Stop"))
+            self.save([task("a", "done"), task("b", "doing")])
+            board.hook(self.event("Stop"))
+            self.assertEqual(launch.call_count, 3)
 
-    def test_page_opens_once_without_a_session_id(self):
-        self.save([task("a")])
+    def test_an_old_session_list_marker_does_not_open_the_page_again(self):
+        self.save([task("a", "doing")])
+        (self.home).mkdir(parents=True, exist_ok=True)
+        (self.home / f"{board.slug(self.root.resolve())}.opened").write_text("s1\ns2", encoding="utf-8")
         with mock.patch.object(board, "launch") as launch:
-            for _ in range(3):
-                event = self.event("Stop")
-                del event["session_id"]
-                board.hook(event)
+            board.hook(self.event("SessionStart", session_id="s9"))
+            self.assertEqual(launch.call_count, 0)
+            self.save([task("a", "doing"), task("b", "doing")])
+            board.hook(self.event("Stop"))
+            self.assertEqual(launch.call_count, 1)
+        (self.home / f"{board.slug(self.root.resolve())}.opened").write_text("{", encoding="utf-8")
+        with mock.patch.object(board, "launch") as launch:
+            board.hook(self.event("Stop"))
+            self.save([task("a", "doing"), task("b", "doing"), task("c", "doing")])
+            board.hook(self.event("Stop"))
             self.assertEqual(launch.call_count, 1)
 
     def test_broken_board_reports_and_does_not_raise(self):

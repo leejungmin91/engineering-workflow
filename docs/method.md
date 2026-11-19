@@ -46,7 +46,7 @@ checks, and open items. Decisions only the user can make are parked with a defau
 ### Progress board
 
 One JSON file per app lists tasks, their prerequisites, and the decisions waiting for the user. A hook draws it as
-a local HTML page, opens it once per session, and redraws it when the file changes. Sessions edit the JSON, never
+a local HTML page, opens it when work on a task starts, and redraws it when the file changes. Sessions edit the JSON, never
 the page. The page leads with what needs the user (decisions with their pictures, blocked tasks), then what is in
 progress and what comes next, and groups the rest by state; an overview lists every board, the ones that need the
 user first. See [board.md](../plugins/engineering-workflow/skills/engineering-workflow/references/board.md).

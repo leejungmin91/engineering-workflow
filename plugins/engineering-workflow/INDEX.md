@@ -19,7 +19,7 @@
 | 훅 | 이벤트 | 동작 |
 | --- | --- | --- |
 | `auto_commit_push` | `Stop` | 턴이 끝나면 남은 변경을 커밋하고 Git의 푸시 설정에 따라 로컬 커밋을 푸시한다. |
-| `board` | `SessionStart`·`PostToolUse`·`Stop` | 프로젝트에 `.harness/board.json`이 있으면 진행 보드를 그려 세션마다 한 번 브라우저에 띄우고, 파일이 바뀌면 다시 그린다. |
+| `board` | `SessionStart`·`PostToolUse`·`Stop` | 프로젝트에 `.harness/board.json`이 있으면 진행 보드를 그려 작업이 시작될 때 브라우저에 띄우고(세션마다 띄우지 않는다), 파일이 바뀌면 다시 그린다. |
 | `registry_hook` | `UserPromptSubmit` | 등록부 설정이 있으면 프롬프트에 맞는 스킬·규칙·작업 기록을 3개 이내로 붙인다. 프롬프트를 막지 않고 저장하지 않는다. |
 
 `WORKING.md`에 `## Lane 1` 절이 있는 저장소에서는 커밋하지 않고 푸시만 한다. `auto_commit_push`는 안전장치가 아니라 개인 프로젝트용 편의 장치다. 작업이 끝나면 항상 커밋·푸시한다는 전제를 기계적으로 보장한다. 자세한 동작과 한계는 `skills/engineering-workflow/references/hook-recommendations.md`에 있다.
