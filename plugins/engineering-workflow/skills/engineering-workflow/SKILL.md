@@ -46,7 +46,7 @@ Use project instructions, established tools, and the permissions already granted
 - When the user calls a design awkward, research how well-known products solve it and cite the sources. Build one sample on the common pattern and show it before rolling the approach out. Give image tools a specific visual brief. Do not prescribe the current layout in the brief, and keep open exploration for the strongest model.
 - When steps have dependencies, record their IDs, prerequisites, scope, deliverables, and pass conditions. Distinguish references and tested contracts from hypotheses. Check unverified assumptions before removing, parallelizing, or deploying work.
 - Run steps after their prerequisites pass. Parallelize only independent work where permitted. Account for shared files, schemas, contracts, and test resources. When an upstream result changes, reopen affected steps and checks.
-- When several sessions share one repository, follow the [multi-session guide](references/multi-session.md): one session implements and commits, other sessions produce candidates or read, and a holder file with a guard hook keeps them apart. Do not split one implementation across parallel writers and merge the results.
+- When several sessions share one repository, follow the [multi-session guide](references/multi-session.md): one session implements and commits, other sessions produce candidates or read, and a holder file with a guard hook keeps them apart. Do not split one implementation across parallel writers and merge the results. To work through a queue without filling one session's context, start one fresh session per task with `scripts/run_queue.py`; see [one task per fresh session](references/run-queue.md).
 
 ### Select verification by impact
 
