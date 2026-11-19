@@ -70,6 +70,7 @@ The registry answers questions that span many projects: which skill fits this pr
 | Commit | PRODUCED | Asset | Asset frontmatter `commits` |
 | Session | HOLDS | Task | `WORKING.md` bullets under a `## Lane <n>` heading that start with a session name. The task is the rest of the line, with `lane` set to the heading |
 | Session | ON | Machine | Every session of an app, when the config names a machine |
+| App | INVOKED | Skill | The usage file, one link per agent with `sessions`, `first`, `last` |
 | Rule | APPLIES_TO | App | The file the rule is in. A rule in the user folder applies to every app |
 | Term | ALIAS_OF | Any node | The glossary file |
 
@@ -160,6 +161,8 @@ A record or asset file may say `app: <name>` to be about another app in the conf
 
 Every file hash includes the scanner's own hash, so after an upgrade every file is read again once.
 
+Use comes from `scripts/registry_usage.py`, which writes the file the config names as `usage`. It reads the local session logs (`~/.claude/projects`, `~/.codex/sessions` and `~/.codex/archived_sessions`, including Codex's `.jsonl.zst` files when Python has `compression.zstd`, or the folders in `usage_sources`), takes the working folder of each log and the skills its tool calls name (the Skill tool's `skill`, or a path ending in `skills/<name>/SKILL.md` in a tool's arguments), and counts sessions per app, skill, and agent. A Claude subagent's log counts toward its parent session, and a skill found by its folder name is linked to the skill whose `SKILL.md` lives in that folder. A skill that is only listed in instructions is not counted. No prompt text is kept. Each log is read from where the last run stopped, so after the first run it takes a fraction of a second; `registry.py sync` runs it first.
+
 Credit files are the `CREDITS.md` files git tracks in an app, minus those under a folder whose name starts with a dot and those matching the app's `ignore` globs (`"ignore": ["build/*"]`). Each table row and each ``- `file`: text`` bullet names one or more files in backticks; each becomes an asset in a group named after the credit file's folder. The license comes from the row's license column, else from the license the file's first paragraph names. A row with neither has no license and reads as `check`. Licenses are recognised by name: CC0 and public domain (`no`), CC BY in any form (`credit`), OFL, Apache, and MIT (`notice`).
 
 Only `apps` is required. The output has one entry per file with its `kind`, a `hash`, and the `nodes` and `links` it states. A file that cannot be read gets an `error` and no facts, and the rest is still read.
@@ -178,7 +181,7 @@ A store adapter keeps the hash of every file it loaded. On the next run it repla
 | `needs <skill>` | What must be enabled for this skill to work | REQUIRES repeatedly |
 | `latest <skill>` | What replaced this skill | SUPERSEDES backwards repeatedly |
 | `dupes <description>` | Does a similar skill already exist | Text search over skill descriptions |
-| `unused` | Which skills does no app use and no record mention | Skills without USES, HAS, or USED links |
+| `unused` | Which skills does no app use, no record mention, and no agent session use | Skills without USES, HAS, USED, or INVOKED links |
 | `licenses <app>` | Which credited assets need credit, a license notice, or a check | IN backwards to assets, then UNDER and FROM, grouped by folder and license |
 | `sessions <app>` | Which sessions work on this app, on which machine, holding what | IN backwards to sessions, then ON and HOLDS |
 

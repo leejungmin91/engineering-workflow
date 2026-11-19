@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import registry_neo4j as graph
 import registry_scan
+import registry_usage
 
 DEFAULT_CONFIG = Path.home() / ".config" / "engineering-workflow" / "registry.json"
 NODE_COMMANDS = ("neighbors", "impact", "spread", "lineage", "needs", "latest", "sessions", "licenses")
@@ -53,6 +54,11 @@ def show_apps(rows):
 def show_impact(data):
     lines = ["depends on it:"] + [f"  {item}" for item in data["dependents"]] if data["dependents"] else []
     lines += ["apps:"] + [f"  {line}" for line in show_apps(data["apps"])] if data["apps"] else ["apps: none"]
+    if data.get("used"):
+        lines.append("used by agents:")
+        for row in data["used"]:
+            lines.append("  " + join(row["id"], row["agent"], f"{row['sessions']} sessions",
+                                     f"{row['first']} to {row['last']}" if row["first"] and row["last"] else None))
     if data["records"]:
         lines += ["records:"] + [f"  {join(row['id'], row['name'], ', '.join(row['links']))}" for row in data["records"]]
     return lines
@@ -93,6 +99,10 @@ def show_unused(data):
         lines += ["never named in a work record:"] + [f"  {row['id']}" for row in data["never_recorded"]]
     else:
         lines.append("no work record names a skill yet, so use cannot be judged")
+    if data.get("usage_configured"):
+        lines += ["no agent session used:"] + [f"  {row['id']}" for row in data["never_used"]]
+    else:
+        lines.append("no usage file is configured, so agent sessions cannot be counted")
     return lines
 
 
@@ -149,6 +159,12 @@ def main(argv=None):
     try:
         store = graph.connect(args.space)
         if args.command == "sync":
+            settings = json.loads(config_path(args.config).read_text(encoding="utf-8"))
+            if settings.get("usage"):
+                try:
+                    registry_usage.update(settings)
+                except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
+                    print(f"registry: usage not counted ({type(error).__name__}: {error})", file=sys.stderr)
             report = refresh(store, args.config, args.rebuild)
             result = {**report, "changed": len(report["changed"]), "removed": len(report["removed"])}
             lines = [f"changed {result['changed']}  removed {result['removed']}  nodes {result['nodes']}  "
@@ -197,7 +213,11 @@ def main(argv=None):
                 result = graph.licenses(store, node, args.group, args.attribution)
                 lines = [node] + show_licenses(result, args.attribution)
             elif args.command == "unused":
-                result = graph.unused(store)
+                try:
+                    usage = bool(json.loads(config_path(args.config).read_text(encoding="utf-8")).get("usage"))
+                except (OSError, ValueError, AttributeError):
+                    usage = False
+                result = graph.unused(store, usage)
                 lines = show_unused(result)
             else:
                 result = graph.status(store)

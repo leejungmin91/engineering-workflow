@@ -448,6 +448,25 @@ class ScanTests(unittest.TestCase):
         self.assertNotIn(("commit:game/32126EC", "PRODUCED", "asset:shop/face"), links)
         self.assertIn(("record:shop/2026-11-19-refund-rounding", "IN", "app:shop"), links)
 
+    def test_usage_file_gives_invoked_links_for_listed_apps_only(self):
+        usage = Path(self.tmp.name) / "usage.json"
+        write(usage, {"usage": [{"app": "game", "skill": "flow", "agent": "codex", "sessions": 3, "first": "2026-11-01",
+                                 "last": "2026-11-02"},
+                                {"app": "gone", "skill": "flow", "agent": "codex", "sessions": 1},
+                                {"app": "game", "skill": ["bad"]}, "junk"]})
+        self.config["usage"] = str(usage)
+        files, _, links = self.facts()
+        self.assertEqual(links[("app:game", "INVOKED", "skill:flow")]["sessions"], 3)
+        self.assertEqual([key for key in links if key[1] == "INVOKED"], [("app:game", "INVOKED", "skill:flow")])
+        write(self.shop / ".claude" / "skills" / "gd" / "SKILL.md", "---\nname: game-dev\ndescription: x\n---\n")
+        write(usage, {"usage": [{"app": "game", "skill": "gd", "agent": "codex", "sessions": 2}]})
+        files, _, links = self.facts()
+        self.assertIn(("app:game", "INVOKED", "skill:game-dev"), links)
+        self.assertNotIn(("app:game", "INVOKED", "skill:gd"), links)
+        write(usage, "{")
+        files, _, _ = self.facts()
+        self.assertIn("error", files[str(usage)])
+
     def test_working_file_without_sessions_states_nothing(self):
         write(self.game / "WORKING.md", "free text\n\n## Lane 1\n\n- build: work\n")
         files, nodes, _ = self.facts()

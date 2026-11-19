@@ -463,6 +463,19 @@ def credits_facts(content, origin):
     return nodes, links
 
 
+def usage_facts(content, origin):
+    known = set(origin.get("known", ()))
+    links = []
+    for row in json.loads(content).get("usage", []):
+        if not isinstance(row, dict) or row.get("app") not in known or not isinstance(row.get("skill"), str):
+            continue
+        sessions = row.get("sessions")
+        links.append(link(f"app:{row['app']}", "INVOKED", f"skill:{row['skill']}", agent=row.get("agent"),
+                          sessions=sessions if isinstance(sessions, int) else None, first=row.get("first"),
+                          last=row.get("last")))
+    return [], links
+
+
 def credit_files(root, ignore, deadline=None):
     if not (Path(root) / ".git").exists():
         return []
@@ -532,7 +545,7 @@ def working_facts(content, origin):
 READERS = {"skill": skill_facts, "plugin": plugin_facts, "hooks": hooks_facts, "settings": settings_facts,
            "installed": installed_facts, "board": board_facts, "record": record_facts, "asset": asset_facts,
            "rules": rules_facts, "glossary": glossary_facts, "working": working_facts,
-           "credits": credits_facts}
+           "credits": credits_facts, "usage": usage_facts}
 
 
 def skill_files(folder):
@@ -597,6 +610,8 @@ def discover(config, deadline=None):
             add(path, "skill", owner=owner, verb="PROVIDES")
     if config.get("glossary"):
         add(config["glossary"], "glossary")
+    if config.get("usage"):
+        add(config["usage"], "usage", known=known)
     return apps, sources
 
 
@@ -720,6 +735,21 @@ def scan(config):
             entry.setdefault("hash", "unreadable")
         files[str(path)] = entry
     files.update(histories(config, deadline))
+    named = {}
+    for entry in files.values():
+        for item in entry.get("nodes", []):
+            if item.get("type") == "skill" and item.get("path"):
+                named.setdefault(Path(item["path"]).parent.name, item["id"])
+    for entry in files.values():
+        if entry.get("kind") != "usage" or entry.get("error"):
+            continue
+        moved = {}
+        for item in entry["links"]:
+            folder = item["to"].split(":", 1)[1]
+            if named.get(folder, item["to"]) != item["to"] and f"skill:{folder}" not in named.values():
+                moved[item["to"]] = item["to"] = named[folder]
+        if moved:
+            entry["hash"] = hashlib.sha256((entry["hash"] + json.dumps(moved, sort_keys=True)).encode("utf-8")).hexdigest()
     return {"files": files}
 
 

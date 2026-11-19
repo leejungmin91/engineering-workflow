@@ -15,7 +15,7 @@ TYPES = ("app", "plugin", "skill", "tool", "model", "task", "decision", "record"
          "term", "checkout", "session", "machine", "license")
 LINKS = ("USES", "DISABLES", "INSTALLED", "PROVIDES", "HAS", "REQUIRES", "SUPERSEDES", "PREFERS", "AFTER", "IN",
          "AFFECTS", "FOR", "USED", "RAN_ON", "PRODUCED", "CONCERNS", "REVIEWED_BY", "VERSION_OF", "FROM", "MADE_BY",
-         "APPROVED", "APPLIES_TO", "ALIAS_OF", "HOLDS", "ON", "UNDER")
+         "APPROVED", "APPLIES_TO", "ALIAS_OF", "HOLDS", "ON", "UNDER", "INVOKED")
 REACH = "HAS|USES|INSTALLED|DISABLES"
 OPEN = ["todo", "doing", "blocked", "parked"]
 
@@ -344,7 +344,9 @@ def impact(store, node_id):
     ids = [node_id] + needing
     records = store.run(f"MATCH (r:{n}:Record)-[l:USED|CONCERNS]->(s:{n}) WHERE s.id IN $ids "
                         "RETURN r.id AS id, r.name AS name, collect(DISTINCT type(l)) AS links ORDER BY id DESC LIMIT 20", ids=ids)
-    return {"dependents": needing, "apps": reach(store, ids), "records": records}
+    used = store.run(f"MATCH (a:{n})-[u:INVOKED]->(s:{n}) WHERE s.id IN $ids RETURN a.id AS id, u.agent AS agent, "
+                     "u.sessions AS sessions, u.first AS first, u.last AS last ORDER BY id, agent", ids=ids)
+    return {"dependents": needing, "apps": reach(store, ids), "records": records, "used": used}
 
 
 def spread(store, record_id):
@@ -386,7 +388,7 @@ def latest(store, node_id):
     return rows or [{"id": node_id, "step": 0}]
 
 
-def unused(store):
+def unused(store, usage=False):
     n = store.node
     logged = store.run(f"MATCH (r:{n}:Record)-[:USED]->() RETURN count(r) AS total")[0]["total"]
     rows = store.run(
@@ -396,7 +398,12 @@ def unused(store):
     never = store.run(
         f"MATCH (s:{n}:Skill) WHERE size(coalesce(s.srcs, [])) > 0 AND NOT (:{n}:Record)-[:USED]->(s) "
         "RETURN s.id AS id ORDER BY id") if logged else []
-    return {"unreachable": rows, "never_recorded": never, "records_with_skills": logged}
+    counted = store.run(f"MATCH (:{n})-[u:INVOKED]->(:{n}) RETURN count(u) AS total")[0]["total"]
+    idle = store.run(
+        f"MATCH (s:{n}:Skill) WHERE size(coalesce(s.srcs, [])) > 0 AND NOT (:{n})-[:INVOKED]->(s) "
+        "RETURN s.id AS id ORDER BY id") if usage else []
+    return {"unreachable": rows, "never_recorded": never, "records_with_skills": logged, "never_used": idle,
+            "usage_counted": counted, "usage_configured": bool(usage)}
 
 
 def sessions(store, app_id):

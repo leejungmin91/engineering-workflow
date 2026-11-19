@@ -32,6 +32,7 @@ python3 scripts/registry.py sessions app:game
 python3 scripts/registry.py licenses app:game --group audio --attribution
 python3 scripts/registry.py status
 python3 scripts/registry.py sync --rebuild
+python3 scripts/registry_usage.py
 ```
 
 | Command | Answer |
@@ -48,6 +49,8 @@ python3 scripts/registry.py sync --rebuild
 | `licenses` | Credited assets by folder and license: count, what the license asks, source hosts, the credit file. `--attribution` keeps only what needs credit, a notice, or a check |
 | `sessions` | The app's sessions from `WORKING.md`, their machine, session id, and the lane work each holds |
 | `status` | Counts by node type and files that could not be read |
+
+`impact` also lists how many agent sessions used a skill in each app, and `unused` the skills no session used, when the config names a `usage` file. `registry_usage.py` fills that file from the local Claude and Codex session logs: it counts a skill when a tool call names it (the Skill tool, or a path to its `SKILL.md`), never when it is only listed, keeps no prompt text, and reads only what was added since its last run. `sync` runs it first.
 
 `--json` prints the raw result. `--no-sync` answers from the graph as it is.
 

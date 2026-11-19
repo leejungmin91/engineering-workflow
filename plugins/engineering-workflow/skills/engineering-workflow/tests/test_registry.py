@@ -284,6 +284,49 @@ class LiveTests(unittest.TestCase):
         self.assertEqual(chain[0]["commits"], ["commit:game/32126ec  32126ec"])
         self.assertEqual(self.ids(graph.neighbors(self.store, "app:game", "asset")), ["asset:shop/face"])
 
+    def test_impact_and_unused_count_agent_sessions(self):
+        report = graph.unused(self.store)
+        self.assertEqual((report["usage_counted"], report["never_used"]), (0, []))
+        self.assertIn("no usage file is configured, so agent sessions cannot be counted", registry.show_unused(report))
+        report = graph.unused(self.store, True)
+        self.assertIn("skill:pay", self.ids(report["never_used"]))
+        self.assertIn("no agent session used:", registry.show_unused(report))
+        usage = Path(self.fixture.tmp.name) / "usage.json"
+        fixtures.write(usage, {"usage": [{"app": "game", "skill": "pay", "agent": "codex", "sessions": 4,
+                                          "first": "2026-11-16", "last": "2026-11-19"}]})
+        config = json.loads(self.config.read_text(encoding="utf-8"))
+        config["usage"] = str(usage)
+        fixtures.write(self.config, config)
+        registry.refresh(self.store, str(self.config))
+        used = graph.impact(self.store, "skill:pay")["used"]
+        self.assertEqual([(row["id"], row["agent"], row["sessions"]) for row in used], [("app:game", "codex", 4)])
+        report = graph.unused(self.store, True)
+        self.assertNotIn("skill:pay", self.ids(report["never_used"]))
+        self.assertIn("skill:flow", self.ids(report["never_used"]))
+        self.assertIn("  app:game  codex  4 sessions  2026-11-16 to 2026-11-19",
+                      registry.show_impact(graph.impact(self.store, "skill:pay")))
+
+    def test_sync_counts_usage_first_and_survives_a_bad_usage_config(self):
+        logs = Path(self.fixture.tmp.name) / "logs"
+        fixtures.write(logs / "s1.jsonl", json.dumps({"cwd": str(self.fixture.game), "timestamp": "2026-11-19T00:00:00Z",
+                                                      "message": {"content": [{"type": "tool_use", "name": "Skill",
+                                                                               "input": {"skill": "pay"}}]}}) + "\n")
+        config = json.loads(self.config.read_text(encoding="utf-8"))
+        config.update({"usage": str(Path(self.fixture.tmp.name) / "usage.json"), "usage_sources": {"claude": str(logs)}})
+        fixtures.write(self.config, config)
+        out = io.StringIO()
+        with mock.patch("sys.stdout", new=mock.MagicMock(buffer=io.BytesIO())):
+            self.assertEqual(registry.main(["--config", str(self.config), "--space", SPACE, "sync"]), 0)
+        used = graph.impact(self.store, "skill:pay")["used"]
+        self.assertEqual([(row["id"], row["sessions"], row["first"]) for row in used], [("app:game", 1, "2026-11-19")])
+        config["usage_sources"] = ["/not/a/mapping"]
+        fixtures.write(self.config, config)
+        with redirect_stderr(out), mock.patch("sys.stdout", new=mock.MagicMock(buffer=io.BytesIO())):
+            self.assertEqual(registry.main(["--config", str(self.config), "--space", SPACE, "sync"]), 0)
+        self.assertIn("usage not counted", out.getvalue())
+        self.assertEqual(registry.show_impact({"dependents": [], "apps": [], "records": [], "used": [
+            {"id": "app:a", "agent": "claude", "sessions": 2, "first": None, "last": None}]})[-1], "  app:a  claude  2 sessions")
+
     def test_command_prints_few_lines_and_reports_unknown_names(self):
         base = ["--space", SPACE, "--config", str(self.config)]
         for arguments, expected in ((["neighbors", "T2"], "task:shop/T1"), (["lineage", "hero-v3"], "CC BY 4.0"),
