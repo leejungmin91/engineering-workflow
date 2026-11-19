@@ -40,6 +40,18 @@ python3 scripts/board.py render /absolute/path/to/.harness/board.json --open
 
 The page goes to `~/.cache/engineering-workflow/boards/`, outside the repository, so it is never committed. `index.html` in the same folder lists every board rendered on this machine with its progress and open decisions. Boards whose file is gone drop off the list. The page reloads itself every five seconds and loads nothing from the network. `--out <file>` writes one page elsewhere and skips the overview.
 
+What the page shows, top first:
+
+- The title with what needs the user: the number of decisions and of blocked tasks, or a "nothing blocked" chip. Beside it, how long ago the board file changed; it turns amber after a day.
+- Three cards: what is in progress now; what comes next (todo tasks whose `after` tasks are done, or, when none is ready, the waiting ones with what they wait for); and progress as a percentage with a bar split by state and a legend that gives every count.
+- The decisions, numbered, each with its default and the file to look at. Pictures named in `look` (a path ending in `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, or `.svg`) or listed in an optional `images` field show as small previews; a click opens the picture large, with previous and next for the decision's other pictures, and Esc or a click outside closes it. Only files inside the project, up to 20 MB and eight per decision, are shown. They are copied to `assets/` beside the page, so the page also works when the board folder is served. The page does not reload while a picture is open.
+- The tasks grouped by state (in progress, blocked, parked, to do), each group with its count. A task waiting on others says which. Done tasks are folded. Long notes show one line and open on click. With two or more owners, buttons filter by owner.
+- The newest five work records in `.harness/records/`.
+
+The page reloads itself every 5 seconds and keeps open notes and the owner filter. It follows the system's light or dark mode and fits a phone screen.
+
+`index.html` lists boards that need the user first (decisions and blocked tasks), then the rest by work in progress. Each row shows a signal chip, progress, what is in progress or next, and how long ago it changed. A board whose file changed after its page was drawn is drawn again when the overview is written, so the overview does not go stale when another project's hooks have not run.
+
 | Exit code | Meaning |
 | --- | --- |
 | 0 | Page written |

@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import os
+import time
 import subprocess
 import sys
 import tempfile
@@ -14,8 +15,11 @@ board = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(board)
 
 
-def task(id, status="todo", after=None, title=None):
-    return {"id": id, "title": title or f"task {id}", "status": status, "after": after or []}
+def task(id, status="todo", after=None, title=None, owner=None):
+    item = {"id": id, "title": title or f"task {id}", "status": status, "after": after or []}
+    if owner:
+        item["owner"] = owner
+    return item
 
 
 class Case(unittest.TestCase):
@@ -67,7 +71,8 @@ class BoardTests(Case):
             self.assertNotIn(mark, output)
             self.assertNotIn("a&b", output)
             self.assertIn("a&amp;b", output)
-        self.assertEqual(content.count("&lt;script&gt;alert(1)&lt;/script&gt;"), 8)
+        for field in ("title", "t", "o", "n", "ask", "look", "default"):
+            self.assertIn(f"{field} &lt;script&gt;alert(1)&lt;/script&gt;", content)
         self.assertIn("title &lt;script&gt;", listing)
 
     def test_decisions_come_from_the_board_and_working_file(self):
@@ -96,6 +101,140 @@ class BoardTests(Case):
         self.save([task("a")], working_decisions="no")
         with self.assertRaises(ValueError):
             board.load(self.root / ".harness" / "board.json")
+
+    def test_tasks_are_grouped_by_state_with_what_is_next(self):
+        self.save([task("a", "done"), task("b", "doing"), task("c", after=["b"]), task("d", after=["a"]),
+                   task("e", "blocked"), task("f", after=["e"])])
+        content = self.page()
+        now = content[content.index("<div class=\"top\">"):content.index("id=\"decisions\"")]
+        self.assertIn("task b", now.split("<h2>Next</h2>")[0])
+        self.assertIn("task d", now.split("<h2>Next</h2>")[1])
+        self.assertNotIn("task c", now)
+        groups = content[content.index("<h2>Tasks</h2>"):]
+        self.assertLess(groups.index("task b"), groups.index("task e"))
+        self.assertLess(groups.index("task e"), groups.index("task c"))
+        self.assertIn('<details class="fold" id="done">', groups)
+        self.assertIn('b after</span>', groups)
+        self.assertIn('class="chip bad"', content)
+        self.save([task("a", "done"), task("c", after=["b"]), task("b", after=["a"]), task("z", after=["c"])])
+        top = self.page().split("<h2>Next</h2>")[1].split("</div>")[0]
+        self.assertIn("task b", top)
+        self.save([task("c", "todo", after=["b"]), task("b", "doing")])
+        top = self.page().split("<h2>Next</h2>")[1].split("</div>")[0]
+        self.assertIn("task c", top)
+        self.assertIn("b after", top)
+
+    def test_owner_filter_appears_only_with_two_owners_and_records_are_listed(self):
+        self.save([task("a", owner="build"), task("b", owner="build")])
+        self.assertNotIn('class="filters"', self.page())
+        self.save([task("a", owner="build"), task("b", owner="planner"), task("c", "done", owner="old")])
+        content = self.page()
+        self.assertIn('data-owner="planner"', content)
+        self.assertNotIn('<button data-owner="old"', content)
+        self.assertIn(".row[hidden]{display:none}", content)
+        self.assertIn('.filters button[data-owner="${CSS.escape(saved.owner)}"]', content)
+        noted = dict(task("a", owner="build"), note="first note")
+        self.save([noted, task("b", owner="planner")])
+        self.assertIn('<details id="note-a">', self.page())
+        self.save([dict(task("x"), note="x note"), noted, task("b", owner="planner")])
+        content = self.page()
+        self.assertIn('<details id="note-a"><summary>first note', content)
+        self.assertIn('<details id="note-x"><summary>x note', content)
+        records = self.root / ".harness" / "records"
+        records.mkdir(parents=True)
+        for day in range(1, 8):
+            (records / f"2026-11-0{day}-r.md").write_text(f"---\nid: x\ntitle: \"Record {day}\"\n---\nbody\n", encoding="utf-8")
+        for number, name in enumerate(("z-oldest", "y", "x", "w", "v", "a-newest")):
+            path = records / f"2026-11-09-{name}.md"
+            path.write_text(f"---\nid: x\ntitle: \"Same day {name}\"\n---\nbody\n", encoding="utf-8")
+            os.utime(path, (1_800_000_000 + number, 1_800_000_000 + number))
+        (records / "2026-11-08-broken.md").write_bytes(b"\xff\xfe")
+        content = self.page()
+        self.assertIn("Same day a-newest", content)
+        self.assertNotIn("Same day z-oldest", content)
+        self.assertNotIn("Record 7", content)
+
+    def test_overview_puts_boards_that_need_the_user_first_and_redraws_stale_ones(self):
+        self.save([task("a", "done"), task("b")], title="Calm")
+        self.page()
+        other = self.root.parent / "other"
+        (other / ".harness").mkdir(parents=True)
+        (other / ".harness" / "board.json").write_text(json.dumps({"title": "Zoo", "tasks": [task("x", "blocked")]}),
+                                                      encoding="utf-8")
+        board.publish(other / ".harness" / "board.json")
+        listing = (self.home / "index.html").read_text(encoding="utf-8")
+        self.assertLess(listing.index("Zoo"), listing.index("Calm"))
+        self.assertIn('class="chip bad"', listing)
+        self.assertIn("data-at=", listing)
+        summary = next(path for path in self.home.glob("other-*.json"))
+        time.sleep(0.05)
+        (other / ".harness" / "board.json").write_text(json.dumps({"title": "Zoo now", "tasks": [task("x", "done")]}),
+                                                      encoding="utf-8")
+        os.utime(other / ".harness" / "board.json", (time.time() + 5, time.time() + 5))
+        self.page()
+        listing = (self.home / "index.html").read_text(encoding="utf-8")
+        self.assertIn("Zoo now", listing)
+        self.assertIn("Zoo now", next(self.home.glob("other-*.html")).read_text(encoding="utf-8"))
+        data = json.loads(summary.read_text(encoding="utf-8"))
+        legacy = {key: data[key] for key in ("title", "root", "board", "page", "percent", "done", "total", "doing",
+                                              "decisions", "stamp")}
+        legacy["title"] = "Legacy"
+        summary.write_text(json.dumps(legacy), encoding="utf-8")
+        os.utime(summary, (time.time() + 60, time.time() + 60))
+        self.page()
+        listing = (self.home / "index.html").read_text(encoding="utf-8")
+        self.assertIn("Zoo now", listing)
+        self.assertNotIn("Legacy", listing)
+        data = json.loads(summary.read_text(encoding="utf-8"))
+        data["tally"] = {"done": "1;background:url(x)"}
+        summary.write_text(json.dumps(data), encoding="utf-8")
+        os.utime(summary, (time.time() + 60, time.time() + 60))
+        self.page()
+        self.assertNotIn("Zoo now", (self.home / "index.html").read_text(encoding="utf-8"))
+
+    def test_decision_pictures_open_in_a_viewer_and_stay_inside_the_project(self):
+        pictures = self.root / "docs"
+        pictures.mkdir(parents=True)
+        (pictures / "a.png").write_bytes(b"png-a")
+        (pictures / "b.jpg").write_bytes(b"jpg-b")
+        (pictures / "big.png").write_bytes(b"x" * 50)
+        (pictures / "my mockup.png").write_bytes(b"spaced")
+        (self.root / "mockup.png").write_bytes(b"wrong")
+        (pictures / "link.png").symlink_to(self.root.parent / "outside.png")
+        (self.root.parent / "outside.png").write_bytes(b"secret")
+        self.save([task("a")], decisions=[
+            {"ask": "Pick", "look": "docs/a.png or `docs/missing.png`, ../outside.png, docs/big.png, `docs/my mockup.png`, docs/link.png",
+             "default": "a",
+             "images": ["docs/b.jpg", str(self.root.parent / "outside.png"), "docs/a.png"]},
+            {"ask": "No pictures", "look": "docs/notes.md"}])
+        with mock.patch.object(board, "PICTURE_BYTES", 10):
+            content = self.page()
+        assets = sorted(path.read_bytes() for path in (self.home / "assets").iterdir())
+        self.assertEqual(assets, [b"jpg-b", b"png-a", b"spaced"])
+        self.assertEqual(content.count('class="thumb"'), 3)
+        self.assertIn('data-name="docs/b.jpg"', content)
+        self.assertIn('<dialog class="viewer"', content)
+        self.assertIn("if (document.querySelector('dialog[open]')) return;", content)
+        self.assertNotIn("secret", content)
+        self.save([task("a")], decisions=[{"ask": "Plain"}])
+        self.assertNotIn("<dialog", self.page())
+        self.save([task("a")], decisions=[{"ask": "Bad", "images": "docs/a.png"}])
+        with self.assertRaises(ValueError):
+            board.load(self.path)
+
+    def test_a_picture_swapped_for_a_link_after_the_check_is_not_copied(self):
+        inside = self.root / "a.png"
+        self.root.mkdir(parents=True, exist_ok=True)
+        inside.write_bytes(b"inside")
+        outside = self.root.parent / "secret.png"
+        outside.write_bytes(b"secret")
+        swapped = self.root / "b.png"
+        swapped.symlink_to(outside)
+        with self.assertRaises(OSError):
+            board.copy_inside(swapped, self.root.resolve(), self.home / "assets" / "x.png")
+        board.copy_inside(inside, self.root.resolve(), self.home / "assets" / "y.png")
+        self.assertEqual((self.home / "assets" / "y.png").read_bytes(), b"inside")
+        self.assertFalse((self.home / "assets" / "x.png").exists())
 
     def test_korean_labels_and_unknown_language_falls_back(self):
         self.save([task("a", "done")], lang="ko")
