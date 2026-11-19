@@ -144,8 +144,8 @@ def answer(event):
     store.deadline = started + BUDGET
     if os.environ.get("HARNESS_REGISTRY_HOOK_SYNC", "1") != "0":
         try:
-            registry.refresh(store, None)
-        except (OSError, ValueError, KeyError, TypeError):
+            registry.refresh(store, None, wait=False)
+        except (OSError, ValueError, KeyError, TypeError, registry.Busy):
             pass
     cwd = event.get("cwd")
     named, scored = candidates(store, prompt, os.environ.get("CLAUDE_PROJECT_DIR") or (cwd if isinstance(cwd, str) else None))

@@ -1,7 +1,9 @@
 import argparse
+import contextlib
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -10,7 +12,15 @@ import registry_neo4j as graph
 import registry_scan
 import registry_usage
 
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+    import msvcrt
+
 DEFAULT_CONFIG = Path.home() / ".config" / "engineering-workflow" / "registry.json"
+LOCK = Path(os.environ.get("HARNESS_REGISTRY_LOCK") or Path.home() / ".cache" / "engineering-workflow" / "registry.lock")
+LOCK_WAIT = 60
 NODE_COMMANDS = ("neighbors", "impact", "spread", "lineage", "needs", "latest", "sessions", "licenses")
 ATTRIBUTION = {"no": "no attribution", "credit": "credit the author", "notice": "keep the license text",
                "check": "license not stated, check"}
@@ -20,9 +30,41 @@ def config_path(given):
     return Path(given or os.environ.get("HARNESS_REGISTRY_CONFIG") or DEFAULT_CONFIG)
 
 
-def refresh(store, given, rebuild=False):
+class Busy(RuntimeError):
+    pass
+
+
+@contextlib.contextmanager
+def held(wait):
+    LOCK.parent.mkdir(parents=True, exist_ok=True)
+    with open(LOCK, "a+") as handle:
+        give_up = time.monotonic() + LOCK_WAIT
+        while True:
+            try:
+                if fcntl:
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                else:
+                    handle.seek(0)
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+                break
+            except OSError:
+                if not wait or time.monotonic() > give_up:
+                    raise Busy("another registry sync is running")
+                time.sleep(0.2)
+        try:
+            yield
+        finally:
+            if fcntl:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            else:
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+
+
+def refresh(store, given, rebuild=False, wait=True):
     scanned = registry_scan.scan(json.loads(config_path(given).read_text(encoding="utf-8")))
-    return graph.sync(store, scanned, rebuild)
+    with held(wait):
+        return graph.sync(store, scanned, rebuild)
 
 
 def join(*parts):
@@ -222,7 +264,7 @@ def main(argv=None):
             else:
                 result = graph.status(store)
                 lines = show_status(result)
-    except (graph.StoreError, OSError, ValueError, KeyError, TypeError) as error:
+    except (graph.StoreError, Busy, OSError, ValueError, KeyError, TypeError) as error:
         print(f"REGISTRY UNAVAILABLE: {type(error).__name__}: {error}", file=sys.stderr)
         return 2
     output = json.dumps(result, ensure_ascii=False, indent=1) if args.json else "\n".join(lines)

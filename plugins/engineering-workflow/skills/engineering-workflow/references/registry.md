@@ -58,7 +58,7 @@ python3 scripts/registry_usage.py
 | --- | --- |
 | 0 | Answered |
 | 1 | The name matched nothing, or matched several nodes (they are listed) |
-| 2 | The config or the graph server is unavailable |
+| 2 | The config or the graph server is unavailable, or another sync held the lock for a minute |
 
 ## Prompt hook
 

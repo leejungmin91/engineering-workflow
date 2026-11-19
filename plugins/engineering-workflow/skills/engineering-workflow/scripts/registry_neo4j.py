@@ -212,6 +212,7 @@ def sync(store, scanned, rebuild=False):
     removed = [path for path in known if path not in files]
     paths = changed + removed
     if paths:
+        store.run(f"UNWIND $paths AS path MERGE (f:{f} {{path: path}}) SET f.hash = null", paths=paths)
         store.run(f"MATCH (:{store.node})-[r]->(:{store.node}) WHERE r.src IN $paths DELETE r", paths=paths)
         rewrite_nodes(store, files, paths)
     for path in changed:

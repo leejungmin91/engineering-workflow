@@ -5,6 +5,8 @@ import os
 import shutil
 import subprocess
 import sys
+import time
+import tempfile
 import unittest
 from contextlib import redirect_stderr
 from pathlib import Path
@@ -79,6 +81,35 @@ class OfflineTests(unittest.TestCase):
             graph.add_terms(rows)
         self.assertEqual(rows[0]["props"]["terms"].split(), ["훅", "앱"])
         self.assertNotIn("terms", rows[1]["props"])
+
+    def test_one_sync_at_a_time(self):
+        with tempfile.TemporaryDirectory() as folder, mock.patch.object(registry, "LOCK", Path(folder) / "lock"), \
+                mock.patch.object(registry, "LOCK_WAIT", 0.5):
+            with registry.held(False):
+                with self.assertRaises(registry.Busy):
+                    with registry.held(False):
+                        pass
+                started = time.monotonic()
+                with self.assertRaises(registry.Busy):
+                    with registry.held(True):
+                        pass
+                self.assertGreaterEqual(time.monotonic() - started, 0.5)
+            with registry.held(False):
+                pass
+            config = Path(folder) / "registry.json"
+            config.write_text('{"apps": []}', encoding="utf-8")
+            with mock.patch.object(graph, "sync", return_value={"done": True}) as sync:
+                with registry.held(False):
+                    with self.assertRaises(registry.Busy):
+                        registry.refresh(None, str(config), wait=False)
+                self.assertFalse(sync.called)
+                self.assertEqual(registry.refresh(None, str(config), wait=False), {"done": True})
+            with mock.patch.object(graph, "connect", return_value=mock.Mock()), \
+                    mock.patch.object(registry, "refresh", side_effect=registry.Busy("busy")), \
+                    mock.patch.object(graph, "status") as status, redirect_stderr(io.StringIO()) as err:
+                self.assertEqual(registry.main(["--config", str(config), "status"]), 2)
+            self.assertFalse(status.called)
+            self.assertIn("REGISTRY UNAVAILABLE: Busy", err.getvalue())
 
     def test_unreachable_server_exits_2_without_a_traceback(self):
         errors = io.StringIO()
@@ -326,6 +357,54 @@ class LiveTests(unittest.TestCase):
         self.assertIn("usage not counted", out.getvalue())
         self.assertEqual(registry.show_impact({"dependents": [], "apps": [], "records": [], "used": [
             {"id": "app:a", "agent": "claude", "sessions": 2, "first": None, "last": None}]})[-1], "  app:a  claude  2 sessions")
+
+    def test_a_sync_cut_short_is_finished_by_the_next_one(self):
+        before = graph.counts(self.store)
+        record = self.fixture.shop / ".harness" / "records" / "2026-11-19-refund-rounding.md"
+        rules = self.fixture.shop / "CLAUDE.md"
+        kept = {path: path.read_text(encoding="utf-8") for path in (record, rules)}
+        fixtures.write(record, fixtures.RECORD + "\nMore.\n")
+        fixtures.write(rules, "## Commits\n\n## Keep going\n")
+        real = graph.load_links
+        calls = []
+
+        def cut(store, path, entry):
+            calls.append(path)
+            if len(calls) > 1:
+                raise graph.StoreError("deadline")
+            return real(store, path, entry)
+
+        with mock.patch.object(graph, "load_links", side_effect=cut):
+            with self.assertRaises(graph.StoreError):
+                registry.refresh(self.store, str(self.config))
+        for path, text in kept.items():
+            path.write_text(text, encoding="utf-8")
+        report = registry.refresh(self.store, str(self.config))
+        self.assertIn(calls[1], report["changed"])
+        after = graph.counts(self.store)
+        self.assertEqual(after["links"], before["links"])
+        self.assertIn("rule:keep-going", [row["id"] for row in graph.neighbors(self.store, "app:shop", "rule")])
+
+    def test_a_new_file_cut_short_and_then_deleted_leaves_nothing(self):
+        before = graph.counts(self.store)
+        fresh = self.fixture.shop / ".harness" / "records" / "2026-11-20-new.md"
+        fixtures.write(fresh, "---\nid: 2026-11-20-new\ntitle: New\nskills: pay\n---\nText\n")
+        real = graph.load_links
+
+        def cut(store, path, entry):
+            if path == str(fresh):
+                store.run(f"MATCH (a:{store.node} {{id: 'record:shop/2026-11-20-new'}}) "
+                          f"MATCH (b:{store.node} {{id: 'skill:pay'}}) CREATE (a)-[r:USED]->(b) SET r.src = $path", path=path)
+                raise graph.StoreError("deadline")
+            return real(store, path, entry)
+
+        with mock.patch.object(graph, "load_links", side_effect=cut):
+            with self.assertRaises(graph.StoreError):
+                registry.refresh(self.store, str(self.config))
+        fresh.unlink()
+        report = registry.refresh(self.store, str(self.config))
+        self.assertIn(str(fresh), report["removed"])
+        self.assertEqual(graph.counts(self.store), before)
 
     def test_command_prints_few_lines_and_reports_unknown_names(self):
         base = ["--space", SPACE, "--config", str(self.config)]

@@ -48,6 +48,12 @@ class OfflineTests(unittest.TestCase):
                 mock.patch.object(graph, "connect", return_value=mock.Mock()):
             return hook.answer(event(prompt))
 
+    def test_a_sync_already_running_is_not_waited_for(self):
+        with mock.patch.dict(os.environ, {"HARNESS_REGISTRY_HOOK_SYNC": "1"}), \
+                mock.patch.object(registry, "refresh", side_effect=registry.Busy("busy")) as refresh:
+            self.answer("오래 걸리는 동기화가 돌고 있을 때 훅은 기다리지 않는다")
+        self.assertEqual(refresh.call_args.kwargs, {"wait": False})
+
     def test_local_judge_keeps_strong_matches_and_at_most_three(self):
         scored = [row("skill:a", 9.0), row("skill:b", 7.0), row("skill:c", 6.0), row("rule:d", 4.0)]
         self.assertEqual([item["id"] for item in hook.local_judge([], scored)], ["skill:a", "skill:b"])
