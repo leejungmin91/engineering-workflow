@@ -2,6 +2,8 @@ import importlib.util
 import io
 import json
 import os
+import shutil
+import subprocess
 import sys
 import unittest
 from contextlib import redirect_stderr
@@ -244,6 +246,26 @@ class LiveTests(unittest.TestCase):
         self.assertEqual(rows["build"]["holds"], [{"lane": "Lane 1: build", "work": "the bridge repair"}])
         self.assertEqual(rows["planner"]["holds"], [])
         self.assertEqual(graph.sessions(self.store, "app:shop"), [])
+
+    def test_licenses_group_assets_and_filter_what_needs_attribution(self):
+        if shutil.which("git") is None:
+            self.skipTest("git is not installed")
+        game = self.fixture.game
+        fixtures.write(game / "Audio" / "CREDITS.md", "| File | Licence | Source |\n| --- | --- | --- |\n"
+                       "| `a` | CC0 | https://free.example.org/a |\n| `b` | CC0 | https://free.example.org/b |\n")
+        fixtures.write(game / "Icons" / "CREDITS.md", "Icons, licence CC BY 3.0.\n\n| File |\n| --- |\n| `axe` |\n")
+        fixtures.write(game / "Ui" / "CREDITS.md", "Made here.\n\n| File |\n| --- |\n| `panel` |\n")
+        subprocess.run(["git", "init", "-q", str(game)], check=True)
+        subprocess.run(["git", "-C", str(game), "add", "Audio", "Icons", "Ui"], check=True)
+        registry.refresh(self.store, str(self.config))
+        rows = {(row["group"], row["license"]): row for row in graph.licenses(self.store, "app:game")}
+        self.assertEqual(sorted(rows), [("audio", "CC0"), ("icons", "CC BY 3.0"), ("ui", "unknown")])
+        self.assertEqual((rows[("audio", "CC0")]["assets"], rows[("audio", "CC0")]["sources"]),
+                         (2, ["source:free.example.org"]))
+        self.assertEqual(rows[("ui", "unknown")]["attribution"], "check")
+        needed = graph.licenses(self.store, "app:game", attribution=True)
+        self.assertEqual([row["group"] for row in needed], ["icons", "ui"])
+        self.assertEqual(graph.licenses(self.store, "app:game", group="audio", attribution=True), [])
 
     def test_command_prints_few_lines_and_reports_unknown_names(self):
         base = ["--space", SPACE, "--config", str(self.config)]

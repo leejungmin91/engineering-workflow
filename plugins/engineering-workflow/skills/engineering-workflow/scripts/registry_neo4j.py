@@ -12,10 +12,10 @@ import registry_text
 NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*")
 RESERVED = {"id", "type", "from", "to"}
 TYPES = ("app", "plugin", "skill", "tool", "model", "task", "decision", "record", "commit", "asset", "source", "rule",
-         "term", "checkout", "session", "machine")
+         "term", "checkout", "session", "machine", "license")
 LINKS = ("USES", "DISABLES", "INSTALLED", "PROVIDES", "HAS", "REQUIRES", "SUPERSEDES", "PREFERS", "AFTER", "IN",
          "AFFECTS", "FOR", "USED", "RAN_ON", "PRODUCED", "CONCERNS", "REVIEWED_BY", "VERSION_OF", "FROM", "MADE_BY",
-         "APPROVED", "APPLIES_TO", "ALIAS_OF", "HOLDS", "ON")
+         "APPROVED", "APPLIES_TO", "ALIAS_OF", "HOLDS", "ON", "UNDER")
 REACH = "HAS|USES|INSTALLED|DISABLES"
 OPEN = ["todo", "doing", "blocked", "parked"]
 
@@ -407,6 +407,19 @@ def sessions(store, app_id):
         "RETURN s.id AS id, s.name AS name, s.session_id AS session_id, s.text AS text, "
         "collect(DISTINCT m.name) AS machines, "
         "[x IN collect({lane: h.lane, work: t.name}) WHERE x.work IS NOT NULL] AS holds ORDER BY name", id=app_id)
+
+
+def licenses(store, app_id, group=None, attribution=False):
+    n = store.node
+    return store.run(
+        f"MATCH (a:{n}:Asset)-[:IN]->(:{n} {{id: $id}}) WHERE a.group IS NOT NULL AND ($group IS NULL OR a.group = $group) "
+        f"OPTIONAL MATCH (a)-[:UNDER]->(l:{n}) OPTIONAL MATCH (a)-[:FROM]->(s:{n}) "
+        "WITH a.group AS group, l, a, s "
+        "WITH group, coalesce(l.name, 'unknown') AS license, coalesce(l.attribution, 'check') AS attribution, "
+        "count(DISTINCT a) AS assets, collect(DISTINCT s.id) AS sources, collect(DISTINCT a.srcs[0]) AS files "
+        "WHERE NOT $attribution OR attribution <> 'no' "
+        "RETURN group, license, attribution, assets, sources, files ORDER BY group, license",
+        id=app_id, group=group, attribution=attribution)
 
 
 def status(store):

@@ -26,8 +26,9 @@ The registry answers questions that span many projects: which skill fits this pr
 | Decision | Something the user decided or is asked to decide | Board decisions, work records |
 | Record | What was done for one task and why | `.harness/records/*.md` |
 | Commit | One commit | Git, through the record that names it |
-| Asset | An image, model, sound, or other produced file | `.harness/assets/*.md` |
-| Source | Where an asset came from and its license | Asset records |
+| Asset | An image, model, sound, or other produced file | `.harness/assets/*.md`, and the rows of tracked `CREDITS.md` files |
+| Source | Where an asset came from, by host | Asset records, credit files |
+| License | A license with what it asks of the user (`no`, `credit`, `notice`, `check`) | Credit files |
 | Session | One agent session and its role | `WORKING.md` |
 | Machine | A computer that runs sessions | `machine` in the config, for the whole config or one app |
 | Rule | One rule in an instruction file | Headings in `CLAUDE.md` and `AGENTS.md` |
@@ -60,7 +61,8 @@ The registry answers questions that span many projects: which skill fits this pr
 | Commit | REVIEWED_BY | Model | Record frontmatter `review` |
 | Asset | IN | App | The asset record's repository |
 | Asset | VERSION_OF | Asset | Asset frontmatter `version_of` |
-| Asset | FROM | Source | Asset frontmatter `source`, `license` |
+| Asset | FROM | Source | Asset frontmatter `source`, `license`; the URL in a credit row, else the URL in the credit file's first paragraph |
+| Asset | UNDER | License | A credit row's license column, else the license named in the credit file's first paragraph |
 | Asset | MADE_BY | Model | Asset frontmatter `made_by` |
 | Decision | APPROVED | Asset | Asset frontmatter `approved_by` |
 | Session | HOLDS | Task | `WORKING.md` bullets under a `## Lane <n>` heading that start with a session name. The task is the rest of the line, with `lane` set to the heading |
@@ -146,6 +148,8 @@ python3 scripts/registry_scan.py /absolute/path/to/registry.json --out /absolute
 
 `WORKING.md` is read loosely. Under `## Sessions`, a bullet shaped `- name: text` is a session, and a `session_id=` in it is kept. Other bullets there are added to the text of every session they name. Under `## Lane <n> ...`, a bullet that starts with a session name is that session's work. Anything else is skipped, never an error.
 
+Credit files are the `CREDITS.md` files git tracks in an app, minus those under a folder whose name starts with a dot and those matching the app's `ignore` globs (`"ignore": ["build/*"]`). Each table row and each ``- `file`: text`` bullet names one or more files in backticks; each becomes an asset in a group named after the credit file's folder. The license comes from the row's license column, else from the license the file's first paragraph names. A row with neither has no license and reads as `check`. Licenses are recognised by name: CC0 and public domain (`no`), CC BY in any form (`credit`), OFL, Apache, and MIT (`notice`).
+
 Only `apps` is required. The output has one entry per file with its `kind`, a `hash`, and the `nodes` and `links` it states. A file that cannot be read gets an `error` and no facts, and the rest is still read.
 
 A store adapter keeps the hash of every file it loaded. On the next run it replaces the facts of files whose hash changed, drops the facts of files that are gone, and leaves the rest alone. The hash covers the file content and which apps the file applies to, so adding an app re-reads the user-level files. A node that several files state stays until the last of them is gone. `scripts/registry_neo4j.py` is the adapter for a local Neo4j server. It holds no address beyond `127.0.0.1` and no password: those come from the environment or the keychain. The data stays on the machine that runs the server.
@@ -163,6 +167,7 @@ A store adapter keeps the hash of every file it loaded. On the next run it repla
 | `latest <skill>` | What replaced this skill | SUPERSEDES backwards repeatedly |
 | `dupes <description>` | Does a similar skill already exist | Text search over skill descriptions |
 | `unused` | Which skills does no app use and no record mention | Skills without USES, HAS, or USED links |
+| `licenses <app>` | Which credited assets need credit, a license notice, or a check | IN backwards to assets, then UNDER and FROM, grouped by folder and license |
 | `sessions <app>` | Which sessions work on this app, on which machine, holding what | IN backwards to sessions, then ON and HOLDS |
 
 Each command prints a few lines with node names and file paths. The agent opens only the files it needs.

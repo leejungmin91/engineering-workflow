@@ -1,19 +1,38 @@
 import argparse
+import fnmatch
 import hashlib
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
 BODY_LIMIT = 4000
 SKILL_DEPTH = 4
-TARGET = re.compile(r"(app|plugin|skill|tool|model|rule|asset|record|task|decision|source):(.+)")
+TARGET = re.compile(r"(app|plugin|skill|tool|model|rule|asset|record|task|decision|source|license):(.+)")
 HEADING = re.compile(r"^## +(.+?)\s*$")
 TRAILING_NOTE = re.compile(r"\s*\([^()]*\)\s*$")
 FENCE = re.compile(r"^(```|~~~)")
 FENCE_OPEN = re.compile(r"^ {0,3}(`{3,}|~{3,})")
 TOP_HEADING = re.compile(r"^ {0,3}(#{1,2})[ \t]+(.+?)\s*$")
 LANE_MARK = "~"
+URL = re.compile(r"https?://([^/\s)>`|,;?#:]+?)\.?(?=[/\s)>`|,;?#:]|$)[^\s)>`|,;]*")
+SEPARATOR = re.compile(r"\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?")
+UNESCAPED_PIPE = re.compile(r"(?<!\\)\|")
+CREDIT_BULLET = re.compile(r"- ((?:`[^`]+`\s*,?\s*)+):\s*(.+)")
+TICKED = re.compile(r"`([^`]+)`")
+LICENSES = (
+    (re.compile(r"\bCC0\b|creative commons 0|public domain", re.I), "CC0", "no"),
+    (re.compile(r"\bCC[- ]BY(?:[- ](?:SA|NC|ND))*(?:[- ]\d\.\d)?", re.I), None, "credit"),
+    (re.compile(r"\bOFL\b|SIL Open Font License(?: \d\.\d)?", re.I), "OFL", "notice"),
+    (re.compile(r"\bApache(?: License)?(?: \d\.\d)?", re.I), "Apache-2.0", "notice"),
+    (re.compile(r"\bMIT\b"), "MIT", "notice"),
+)
+COLUMNS = {"file": "file", "files": "file", "licence": "license", "license": "license", "source": "source",
+           "from": "source", "author": "author", "by": "author"}
+CREDIT_FILES = "*CREDITS.md"
+GIT_TIMEOUT = 5
+SCANNER = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 SESSION_LINE = re.compile(r"([A-Za-z][\w-]{0,30}):\s+(.+)")
 SESSION_ID = re.compile(r"session_id=([0-9a-fA-F-]{8,})")
 LANE = re.compile(r"lane\s*(\d+)", re.IGNORECASE)
@@ -327,6 +346,111 @@ def bullets(content):
     return sections
 
 
+def license_of(text):
+    for pattern, name, attribution in LICENSES:
+        found = pattern.search(text or "")
+        if found:
+            return name or re.sub(r"[- ]+", " ", found.group(0)).upper(), attribution
+    return None, "check"
+
+
+def unfenced(lines):
+    opened = None
+    for line in lines:
+        was = opened
+        opened = fence_mark(line, opened)
+        yield None if was is not None or opened is not None else line
+
+
+def first_paragraph(lines):
+    block = []
+    for line in unfenced(lines):
+        if line is None or line.startswith("#") or not line.strip() or line.lstrip().startswith(("|", "- ")) or (
+                "|" in line):
+            if block:
+                break
+            continue
+        block.append(line)
+    return " ".join(block)
+
+
+def cells(line):
+    text = line.strip()
+    text = text[1:] if text.startswith("|") else text
+    text = text[:-1] if text.endswith("|") and not text.endswith("\\|") else text
+    return [cell.strip().replace("\\|", "|") for cell in UNESCAPED_PIPE.split(text)]
+
+
+def credit_rows(lines):
+    rows, header, plain = [], None, list(unfenced(lines))
+    for index, line in enumerate(plain):
+        if line is None or "|" not in line:
+            header = None
+            if line:
+                item = CREDIT_BULLET.match(line.strip())
+                if item:
+                    rows.append({"file": item.group(1), "title": item.group(2)})
+            continue
+        if SEPARATOR.fullmatch(line.strip()):
+            continue
+        following = plain[index + 1] if index + 1 < len(plain) else None
+        if following is not None and SEPARATOR.fullmatch(following.strip()):
+            header = [COLUMNS.get(cell.lower(), "title" if position else "file")
+                      for position, cell in enumerate(cells(line))]
+        elif header is not None:
+            rows.append(dict(zip(header, cells(line))))
+    return rows
+
+
+def credits_facts(content, origin):
+    app, name = origin["app"], origin["app"].split(":", 1)[1]
+    folder = origin["folder"]
+    group = slug(Path(folder).name or name)
+    place = f"{group}-{hashlib.sha256(folder.encode('utf-8')).hexdigest()[:6]}"
+    lines = content.splitlines()
+    opening = first_paragraph(lines)
+    default, fallback = license_of(opening), URL.search(opening)
+    nodes, links, licenses = [], [], {}
+    for row in credit_rows(lines):
+        named = TICKED.findall(row.get("file", "")) or ([row["file"]] if row.get("file") else [])
+        licence, attribution = license_of(row["license"]) if row.get("license") else default
+        where = URL.search(row.get("source", "")) or URL.search(" ".join(row.values())) or fallback
+        for item in named:
+            key = f"{name}/{place}/{item}"
+            me = f"asset:{key}"
+            nodes.append(node("asset", key, name=item, file=f"{folder}/{item}" if folder else item,
+                              text=" ".join(value for field, value in row.items() if field in ("title", "author")),
+                              group=group))
+            links.append(link(me, "IN", app))
+            if licence:
+                licenses[licence] = attribution
+                links.append(link(me, "UNDER", f"license:{slug(licence)}"))
+            if where:
+                host = where.group(1).lower()
+                nodes.append(node("source", host, url=where.group(0)))
+                links.append(link(me, "FROM", f"source:{host}", license=licence))
+    nodes.extend(node("license", slug(licence), name=licence, attribution=attribution)
+                 for licence, attribution in licenses.items())
+    return nodes, links
+
+
+def credit_files(root, ignore):
+    try:
+        listed_files = subprocess.run(["git", "--no-optional-locks", "-C", str(root), "ls-files", "-z", "--",
+                                       CREDIT_FILES], capture_output=True, timeout=GIT_TIMEOUT, check=True).stdout
+    except (OSError, subprocess.SubprocessError):
+        return []
+    found = []
+    for relative in listed_files.decode("utf-8", "replace").split("\0"):
+        parts = Path(relative).parts
+        if not relative or parts[-1] != "CREDITS.md" or any(part.startswith(".") for part in parts[:-1]):
+            continue
+        if any(fnmatch.fnmatch(relative, pattern) for pattern in ignore):
+            continue
+        found.append(relative)
+    return sorted(found)
+
+
 def working_facts(content, origin):
     app, name = origin["app"], origin["app"].split(":", 1)[1]
     sections = bullets(content)
@@ -376,7 +500,8 @@ def working_facts(content, origin):
 
 READERS = {"skill": skill_facts, "plugin": plugin_facts, "hooks": hooks_facts, "settings": settings_facts,
            "installed": installed_facts, "board": board_facts, "record": record_facts, "asset": asset_facts,
-           "rules": rules_facts, "glossary": glossary_facts, "working": working_facts}
+           "rules": rules_facts, "glossary": glossary_facts, "working": working_facts,
+           "credits": credits_facts}
 
 
 def skill_files(folder):
@@ -393,6 +518,7 @@ def discover(config):
     apps = [(item["name"], Path(item["path"])) for item in config.get("apps", [])]
     every = [f"app:{name}" for name, _ in apps]
     machines = {item["name"]: item.get("machine") or config.get("machine") for item in config.get("apps", [])}
+    ignores = {item["name"]: list(item.get("ignore") or []) for item in config.get("apps", [])}
     sources = []
 
     def add(path, kind, **origin):
@@ -407,6 +533,8 @@ def discover(config):
         for path in sorted((root / ".harness" / "assets").glob("*.md")) if (root / ".harness" / "assets").is_dir() else []:
             add(path, "asset", app=app)
         add(root / "WORKING.md", "working", app=app, machine=machines.get(name))
+        for relative in credit_files(root, ignores.get(name, [])):
+            add(root / relative, "credits", app=app, folder=str(Path(relative).parent.as_posix()).strip("."))
         for rules in ("CLAUDE.md", "AGENTS.md"):
             add(root / rules, "rules", apps=[app], scope="project")
         add(root / ".claude" / "settings.json", "settings", apps=[app], scope="project")
@@ -451,7 +579,7 @@ def scan(config):
             raw = path.read_bytes()
             scope = {key: sorted(value) if isinstance(value, list) else value for key, value in origin.items()}
             entry["hash"] = hashlib.sha256(
-                raw + json.dumps([kind, scope], sort_keys=True).encode("utf-8")).hexdigest()
+                raw + json.dumps([kind, scope, SCANNER], sort_keys=True).encode("utf-8")).hexdigest()
             entry["nodes"], entry["links"] = READERS[kind](raw.decode("utf-8"), origin)
             for item in entry["nodes"]:
                 if item["id"].split(":")[0] in ("skill", "record", "asset") and "path" not in item:

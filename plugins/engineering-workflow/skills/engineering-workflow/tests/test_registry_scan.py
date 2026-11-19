@@ -1,9 +1,11 @@
 import importlib.util
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts/registry_scan.py"
@@ -190,6 +192,91 @@ class ScanTests(unittest.TestCase):
         held = sorted(nodes[key[2]]["name"] for key in links if key[1] == "HOLDS")
         self.assertEqual(held, [same + "a", same + "b"])
 
+    def credits(self):
+        if shutil.which("git") is None:
+            self.skipTest("git is not installed")
+        sounds = self.game / "Assets" / "Audio"
+        write(sounds / "CREDITS.md", "# Sound credits\n\nAll recordings are CC0 from https://example.org.\n\n"
+              "| Files | Pack | Author | Licence | Source |\n| --- | --- | --- | --- | --- |\n"
+              "| `step_*`, `jump_*` | Steps | Ann | CC0 | https://sounds.example.com/steps |\n"
+              "| `roar_*` | Roars | Bo | CC BY 4.0 | https://beasts.example.net/roar |\n\n"
+              "```\n| File | Licence |\n| --- | --- |\n| `fenced_*` | MIT |\n- `fenced.png`: inside\n```\n")
+        write(self.game / "Assets" / "Icons" / "CREDITS.md", "# Icons\n\nIcons from https://icons.example.com, "
+              "licence CC BY 3.0.\n\n| File | Icon | Author |\n| --- | --- | --- |\n| `axe.png` | axe | Cy |\n")
+        write(self.game / "Assets" / "Art" / "CREDITS.md", "# Art\n\nMade for this project.\n\n"
+              "- `hero.png`: drawn by hand\n")
+        write(self.game / ".copy" / "Audio" / "CREDITS.md", "| File | Licence |\n| --- | --- |\n| `dup` | CC0 |\n")
+        write(self.game / "Old" / "CREDITS.md", "| File | Licence |\n| --- | --- |\n| `old` | CC0 |\n")
+        write(self.game / "Loose" / "CREDITS.md", "| File | Licence |\n| --- | --- |\n| `loose` | CC0 |\n")
+        subprocess.run(["git", "init", "-q", str(self.game)], check=True)
+        subprocess.run(["git", "-C", str(self.game), "add", "Assets", ".copy", "Old", "AGENTS.md"], check=True)
+        self.config["apps"][1]["ignore"] = ["Old/*"]
+        return self.facts()
+
+    def test_credit_tables_prose_and_bullets_become_assets_with_licenses(self):
+        files, nodes, links = self.credits()
+        assets = {(item["group"], item["name"]): key for key, item in nodes.items() if key.startswith("asset:game/")}
+        self.assertEqual(sorted(assets), [("art", "hero.png"), ("audio", "jump_*"), ("audio", "roar_*"),
+                                          ("audio", "step_*"), ("icons", "axe.png")])
+        step, roar, axe, hero = (assets[key] for key in (("audio", "step_*"), ("audio", "roar_*"), ("icons", "axe.png"),
+                                                         ("art", "hero.png")))
+        self.assertEqual(nodes[step]["file"], "Assets/Audio/step_*")
+        self.assertIn((step, "UNDER", "license:cc0"), links)
+        self.assertIn((roar, "UNDER", "license:cc-by-4-0"), links)
+        self.assertEqual(nodes["license:cc-by-4-0"]["attribution"], "credit")
+        self.assertEqual(nodes["license:cc0"]["attribution"], "no")
+        self.assertEqual(links[(roar, "FROM", "source:beasts.example.net")]["license"], "CC BY 4.0")
+        self.assertIn((axe, "UNDER", "license:cc-by-3-0"), links)
+        self.assertIn((axe, "FROM", "source:icons.example.com"), links)
+        self.assertFalse([key for key in links if key[0] == hero and key[1] in ("UNDER", "FROM")])
+        self.assertNotIn(str(self.game / ".copy" / "Audio" / "CREDITS.md"), files)
+        self.assertNotIn(str(self.game / "Old" / "CREDITS.md"), files)
+        self.assertNotIn(str(self.game / "Loose" / "CREDITS.md"), files)
+
+    def one_credit_file(self, text, folder="Kit"):
+        path = self.game / folder / "CREDITS.md"
+        write(path, text)
+        nodes, links = registry_scan.credits_facts(text, {"app": "app:game", "folder": folder})
+        assets = {item["name"]: item["id"] for item in nodes if item["type"] == "asset"}
+        return assets, {(item["from"], item["type"], item["to"]) for item in links}
+
+    def test_same_file_name_in_two_credit_folders_stays_two_assets(self):
+        if shutil.which("git") is None:
+            self.skipTest("git is not installed")
+        write(self.game / "one" / "Art" / "CREDITS.md", "| File | Licence |\n| --- | --- |\n| `a.png` | CC0 |\n| `a-png` | MIT |\n")
+        write(self.game / "two" / "Art" / "CREDITS.md", "| File | Licence |\n| --- | --- |\n| `a.png` | CC BY 4.0 |\n")
+        write(self.game / "Art" / "OLD_CREDITS.md", "| File | Licence |\n| --- | --- |\n| `old.png` | CC0 |\n")
+        subprocess.run(["git", "init", "-q", str(self.game)], check=True)
+        subprocess.run(["git", "-C", str(self.game), "add", "one", "two", "Art"], check=True)
+        _, nodes, links = self.facts()
+        assets = sorted(key for key in nodes if key.startswith("asset:game/"))
+        self.assertEqual(len(assets), 3)
+        under = {key[0]: key[2] for key in links if key[1] == "UNDER"}
+        self.assertEqual(sorted(under.values()), ["license:cc-by-4-0", "license:cc0", "license:mit"])
+        self.assertFalse([key for key in nodes if nodes[key].get("name") == "old.png"])
+
+    def test_credit_rows_in_other_markdown_shapes(self):
+        assets, links = self.one_credit_file(
+            "Made here, MIT.\n\n- `a.png`, `b.png`: drawn here\n\nFiles | License\n--- | ---\n`axe.png` | CC0\n\n"
+            "| File | Title | License |\n| --- | --- | --- |\n| `c.png` | A \\| B | CC BY 4.0 |\n")
+        self.assertEqual(sorted(assets), ["a.png", "axe.png", "b.png", "c.png"])
+        self.assertIn((assets["axe.png"], "UNDER", "license:cc0"), links)
+        self.assertIn((assets["c.png"], "UNDER", "license:cc-by-4-0"), links)
+        self.assertIn((assets["a.png"], "UNDER", "license:mit"), links)
+
+    def test_fenced_text_is_not_the_first_paragraph_and_hosts_drop_queries(self):
+        assets, links = self.one_credit_file(
+            "```\nCC0 https://wrong.example\n```\n\nPictures under MIT.\n\n"
+            "| File | Source |\n| --- | --- |\n| `a.png` | https://example.org?download=1 |\n"
+            "| `b.png` | https://example.org#license |\n")
+        self.assertIn((assets["a.png"], "UNDER", "license:mit"), links)
+        self.assertEqual({key[2] for key in links if key[1] == "FROM"}, {"source:example.org"})
+
+    def test_credit_files_need_git_and_never_fail_the_scan(self):
+        files, _, _ = self.facts()
+        self.assertFalse([path for path in files if path.endswith("CREDITS.md")])
+        self.assertEqual(registry_scan.credit_files(self.game / "missing", []), [])
+
     def test_working_file_without_sessions_states_nothing(self):
         write(self.game / "WORKING.md", "free text\n\n## Lane 1\n\n- build: work\n")
         files, nodes, _ = self.facts()
@@ -239,6 +326,12 @@ class ScanTests(unittest.TestCase):
             self.assertIn("error", files[str(self.plugin / ".claude-plugin" / "plugin.json")])
             self.assertIn("skill:flow", nodes)
             self.assertNotIn(("plugin:flow", "PROVIDES", "skill:flow"), links)
+
+    def test_a_new_scanner_changes_every_hash(self):
+        before, _, _ = self.facts()
+        with mock.patch.object(registry_scan, "SCANNER", "another version"):
+            after, _, _ = self.facts()
+        self.assertFalse([path for path in before if path != "config:apps" and before[path]["hash"] == after[path]["hash"]])
 
     def test_hash_follows_the_reader_and_ignores_app_order(self):
         before, _, _ = self.facts()

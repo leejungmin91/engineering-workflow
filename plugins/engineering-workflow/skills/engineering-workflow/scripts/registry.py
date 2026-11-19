@@ -10,7 +10,9 @@ import registry_neo4j as graph
 import registry_scan
 
 DEFAULT_CONFIG = Path.home() / ".config" / "engineering-workflow" / "registry.json"
-NODE_COMMANDS = ("neighbors", "impact", "spread", "lineage", "needs", "latest", "sessions")
+NODE_COMMANDS = ("neighbors", "impact", "spread", "lineage", "needs", "latest", "sessions", "licenses")
+ATTRIBUTION = {"no": "no attribution", "credit": "credit the author", "notice": "keep the license text",
+               "check": "license not stated, check"}
 
 
 def config_path(given):
@@ -103,6 +105,12 @@ def show_sessions(rows):
     return lines or ["no sessions in WORKING.md"]
 
 
+def show_licenses(rows, filtered=False):
+    lines = [join(row["group"], row["license"], f"{row['assets']} assets", ATTRIBUTION.get(row["attribution"], row["attribution"]),
+                  ", ".join(item.split(":", 1)[1] for item in row["sources"]), ", ".join(row["files"])) for row in rows]
+    return lines or ["nothing here needs credit, a notice, or a check" if filtered else "no credited assets"]
+
+
 def show_status(data):
     lines = [f"nodes {data['nodes']}  links {data['links']}  files {data['files']}",
              "  ".join(f"{kind} {total}" for kind, total in data["types"].items())]
@@ -130,6 +138,9 @@ def main(argv=None):
         one.add_argument("node")
         if name == "neighbors":
             one.add_argument("--type", dest="kind")
+        if name == "licenses":
+            one.add_argument("--group")
+            one.add_argument("--attribution", action="store_true", help="only what needs credit, a notice, or a check")
     commands.add_parser("unused")
     commands.add_parser("status")
     commands.add_parser("sync").add_argument("--rebuild", action="store_true")
@@ -181,6 +192,9 @@ def main(argv=None):
             elif args.command == "sessions":
                 result = graph.sessions(store, node)
                 lines = [node] + show_sessions(result)
+            elif args.command == "licenses":
+                result = graph.licenses(store, node, args.group, args.attribution)
+                lines = [node] + show_licenses(result, args.attribution)
             elif args.command == "unused":
                 result = graph.unused(store)
                 lines = show_unused(result)

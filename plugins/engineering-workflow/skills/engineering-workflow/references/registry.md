@@ -28,6 +28,7 @@ python3 scripts/registry.py needs skill:store-release
 python3 scripts/registry.py latest skill:ios-release
 python3 scripts/registry.py unused
 python3 scripts/registry.py sessions app:game
+python3 scripts/registry.py licenses app:game --group audio --attribution
 python3 scripts/registry.py status
 python3 scripts/registry.py sync --rebuild
 ```
@@ -43,6 +44,7 @@ python3 scripts/registry.py sync --rebuild
 | `needs` | Everything the skill requires, step by step, marking what no scanned file defines |
 | `latest` | The skill at the end of the supersedes chain |
 | `unused` | Skills no app reaches, and skills no work record names |
+| `licenses` | Credited assets by folder and license: count, what the license asks, source hosts, the credit file. `--attribution` keeps only what needs credit, a notice, or a check |
 | `sessions` | The app's sessions from `WORKING.md`, their machine, session id, and the lane work each holds |
 | `status` | Counts by node type and files that could not be read |
 
