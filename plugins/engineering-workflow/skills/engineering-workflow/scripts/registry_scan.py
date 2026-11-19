@@ -476,14 +476,15 @@ def usage_facts(content, origin):
     return [], links
 
 
-def credit_files(root, ignore, deadline=None):
+def credit_files(root, ignore, deadline=None, saved=None):
     if not (Path(root) / ".git").exists():
         return []
     try:
         listed_files = git(root, time.monotonic() + GIT_TIMEOUT if deadline is None else deadline,
                            "ls-files", "-z", "--", CREDIT_FILES)
     except (OSError, subprocess.SubprocessError):
-        return []
+        kept = remembered(saved).get("git:credits", []) if saved else []
+        return [item for item in kept if isinstance(item, str)]
     found = []
     for relative in listed_files.split("\0"):
         parts = Path(relative).parts
@@ -492,6 +493,8 @@ def credit_files(root, ignore, deadline=None):
         if any(fnmatch.fnmatch(relative, pattern) for pattern in ignore):
             continue
         found.append(relative)
+    if saved:
+        remember(saved, {"git:credits": sorted(found)})
     return sorted(found)
 
 
@@ -578,7 +581,7 @@ def discover(config, deadline=None):
         for path in sorted((root / ".harness" / "assets").glob("*.md")) if (root / ".harness" / "assets").is_dir() else []:
             add(path, "asset", app=app, known=known)
         add(root / "WORKING.md", "working", app=app, machine=machines.get(name))
-        for relative in credit_files(root, ignores.get(name, []), deadline):
+        for relative in credit_files(root, ignores.get(name, []), deadline, cache_file(config, f"{name}\ncredits", root)):
             add(root / relative, "credits", app=app, folder=str(Path(relative).parent.as_posix()).strip("."))
         for rules in ("CLAUDE.md", "AGENTS.md"):
             add(root / rules, "rules", apps=[app], scope="project")

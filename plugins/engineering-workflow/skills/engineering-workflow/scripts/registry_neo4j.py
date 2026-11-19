@@ -17,6 +17,8 @@ LINKS = ("USES", "DISABLES", "INSTALLED", "PROVIDES", "HAS", "REQUIRES", "SUPERS
          "AFFECTS", "FOR", "USED", "RAN_ON", "PRODUCED", "CONCERNS", "REVIEWED_BY", "VERSION_OF", "FROM", "MADE_BY",
          "APPROVED", "APPLIES_TO", "ALIAS_OF", "HOLDS", "ON", "UNDER", "INVOKED")
 REACH = "HAS|USES|INSTALLED|DISABLES"
+REMOVAL_FLOOR = 10
+REMOVAL_SHARE = 0.25
 OPEN = ["todo", "doing", "blocked", "parked"]
 
 
@@ -210,6 +212,10 @@ def sync(store, scanned, rebuild=False):
     files = checked(scanned["files"])
     changed = [path for path, entry in files.items() if known.get(path) != entry["hash"]]
     removed = [path for path in known if path not in files]
+    if not rebuild and len(removed) > max(REMOVAL_FLOOR, len(known) * REMOVAL_SHARE):
+        return {"changed": [], "removed": [], "held": removed,
+                "skipped": [path for path, entry in files.items() if entry.get("error")], **counts(store)}
+    held = []
     paths = changed + removed
     if paths:
         store.run(f"UNWIND $paths AS path MERGE (f:{f} {{path: path}}) SET f.hash = null", paths=paths)
@@ -222,7 +228,7 @@ def sync(store, scanned, rebuild=False):
     if paths:
         sweep(store)
         store.run("CALL db.index.fulltext.awaitEventuallyConsistentIndexRefresh()")
-    return {"changed": changed, "removed": removed,
+    return {"changed": changed, "removed": removed, "held": held,
             "skipped": [path for path, entry in files.items() if entry.get("error")], **counts(store)}
 
 

@@ -273,6 +273,18 @@ class ScanTests(unittest.TestCase):
         self.assertIn((assets["a.png"], "UNDER", "license:mit"), links)
         self.assertEqual({key[2] for key in links if key[1] == "FROM"}, {"source:example.org"})
 
+    def test_credit_files_come_from_the_last_good_list_when_git_runs_out_of_time(self):
+        files, _, _ = self.credits()
+        good = sorted(path for path in files if path.endswith("CREDITS.md"))
+        self.assertTrue(good)
+        with mock.patch.object(registry_scan, "GIT_BUDGET", 0):
+            again = registry_scan.scan(self.config)["files"]
+        self.assertEqual(sorted(path for path in again if path.endswith("CREDITS.md")), good)
+        self.config["cache"] = str(Path(self.tmp.name) / "fresh-cache")
+        with mock.patch.object(registry_scan, "GIT_BUDGET", 0):
+            empty = registry_scan.scan(self.config)["files"]
+        self.assertFalse([path for path in empty if path.endswith("CREDITS.md")])
+
     def test_credit_files_need_git_and_never_fail_the_scan(self):
         files, _, _ = self.facts()
         self.assertFalse([path for path in files if path.endswith("CREDITS.md")])

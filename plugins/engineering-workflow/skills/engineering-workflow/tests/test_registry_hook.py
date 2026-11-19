@@ -149,6 +149,23 @@ class OfflineTests(unittest.TestCase):
                 text = self.answer("which skill fits", scored=scored)["hookSpecificOutput"]["additionalContext"]
                 self.assertIn("- skill:a", text)
 
+    def test_the_log_keeps_the_judge_time_apart_from_the_hook_time(self):
+        scored = [row("skill:a", 9.0)]
+        picker = Path(self.tmp.name) / "slow.py"
+        picker.write_text("import json, sys, time\ndata = json.load(sys.stdin)\ntime.sleep(0.3)\n"
+                          "print(json.dumps([data['candidates'][0]['id']]))\n", encoding="utf-8")
+        log = Path(self.tmp.name) / "log"
+        with mock.patch.dict(os.environ, {"HARNESS_REGISTRY_JUDGE": f'"{sys.executable}" "{picker}"',
+                                          "HARNESS_REGISTRY_LOG": str(log)}):
+            self.answer("which skill fits", scored=scored)
+        with mock.patch.dict(os.environ, {"HARNESS_REGISTRY_LOG": str(log)}):
+            self.answer("which skill fits", scored=scored)
+        first, second = [json.loads(line) for line in (log / "hook.jsonl").read_text().splitlines()]
+        self.assertEqual(first["judge"], "outside")
+        self.assertGreaterEqual(first["judge_seconds"], 0.3)
+        self.assertLessEqual(first["judge_seconds"], first["seconds"])
+        self.assertIsNone(second["judge_seconds"])
+
     def test_named_candidates_stay_and_the_built_in_judge_name_runs_the_sibling_script(self):
         named, scored = [row("skill:n", None)], [row("skill:a", 9.0), row("skill:b", 3.0)]
         with mock.patch.object(hook, "run_judge", return_value='["skill:b"]') as run:

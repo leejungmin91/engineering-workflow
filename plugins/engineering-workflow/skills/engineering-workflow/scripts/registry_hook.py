@@ -152,15 +152,18 @@ def answer(event):
     judge, how = os.environ.get("HARNESS_REGISTRY_JUDGE"), "local"
     chosen = None
     left = min(JUDGE_SECONDS, started + BUDGET - time.monotonic())
+    judged = None
     if judge and (named or scored) and left > 0.3:
+        asked = time.monotonic()
         try:
             chosen, how = outside_judge(judge, prompt, named, scored, left), "outside"
         except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
             how = "local after judge failure"
+        judged = round(time.monotonic() - asked, 2)
     if chosen is None:
         chosen = local_judge(named, scored)
     record({"at": time.strftime("%Y-%m-%dT%H:%M:%S"), "judge": how, "seconds": round(time.monotonic() - started, 2),
-            "offered": len(named) + len(scored), "top_score": scored[0]["score"] if scored else None,
+            "judge_seconds": judged, "offered": len(named) + len(scored), "top_score": scored[0]["score"] if scored else None,
             "chosen": [row["id"] for row in chosen]})
     if not chosen:
         return None

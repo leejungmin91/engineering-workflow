@@ -167,6 +167,8 @@ Credit files are the `CREDITS.md` files git tracks in an app, minus those under 
 
 Only `apps` is required. The output has one entry per file with its `kind`, a `hash`, and the `nodes` and `links` it states. A file that cannot be read gets an `error` and no facts, and the rest is still read.
 
+A sync whose scan would remove more than a quarter of the files the graph knows (and more than ten) removes nothing and reports them as held back: such a scan is more likely broken (Git out of time, a folder out of reach) than right. `sync --rebuild` removes them when they are really gone. Credit file lists are cached like Git history, so a slow Git does not drop every asset.
+
 Only one sync writes at a time: the commands wait for a lock file (`~/.cache/engineering-workflow/registry.lock`, or `HARNESS_REGISTRY_LOCK`) for up to a minute, and the prompt hook skips its sync when another one holds it. Before a sync removes a file's facts it clears that file's stored hash, so a sync cut short (the hook's time budget, a shutdown) is finished by the next one even if the file has meanwhile gone back to the content it had.
 
 A store adapter keeps the hash of every file it loaded. On the next run it replaces the facts of files whose hash changed, drops the facts of files that are gone, and leaves the rest alone. The hash covers the file content and which apps the file applies to, so adding an app re-reads the user-level files. A node that several files state stays until the last of them is gone. `scripts/registry_neo4j.py` is the adapter for a local Neo4j server. It holds no address beyond `127.0.0.1` and no password: those come from the environment or the keychain. The data stays on the machine that runs the server.

@@ -211,6 +211,10 @@ def main(argv=None):
             result = {**report, "changed": len(report["changed"]), "removed": len(report["removed"])}
             lines = [f"changed {result['changed']}  removed {result['removed']}  nodes {result['nodes']}  "
                      f"links {result['links']}  files {result['files']}"] + [f"skipped {path}" for path in report["skipped"]]
+            if report.get("held"):
+                lines.append(f"held back {len(report['held'])} removals: this scan is missing many files the graph has; "
+                             "check the scan, or run sync --rebuild if they are really gone")
+            result["held"] = len(report.get("held", []))
         else:
             if not args.no_sync:
                 try:

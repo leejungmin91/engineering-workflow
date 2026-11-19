@@ -52,6 +52,18 @@ python3 scripts/registry_usage.py
 
 `impact` also lists how many agent sessions used a skill in each app, and `unused` the skills no session used, when the config names a `usage` file. `registry_usage.py` fills that file from the local Claude and Codex session logs: it counts a skill when a tool call names it (the Skill tool, or a path to its `SKILL.md`), never when it is only listed, keeps no prompt text, and reads only what was added since its last run. `sync` runs it first.
 
+## Registry page
+
+`python3 scripts/registry_view.py --lang ko` writes `registry.html` beside the board pages (or `--out`), and the overview links it. It has five tabs:
+
+- Graph: every node, coloured by type, with search and zoom. Commits, assets, sources, and licenses are hidden at first. A click opens an inspector that groups the node's links by relation with counts; a relation shows its ends, and "neighbours only" hides the rest (after Neo4j Bloom).
+- Structure: one card per node type with its count and examples, and the links between types with their counts.
+- Judge: the prompt hook's decisions from its log (`--log`, else `HARNESS_REGISTRY_LOG`): outside or local, the hook's time and the judge's own time (p50, p95), how often something was attached, and a summary per decision. The log has no prompt text.
+- Models: how models are chosen (the shared rule's "## Model selection" section from the user folder), use per model from work records and reviews, and the models skills ask for.
+- Connection: whether the graph server answers, its version and counts, the HTTP and Bolt addresses, the user, where the password is read from (never the password), and an SSH tunnel command for other machines.
+
+The page reloads itself every minute. Draw it again on a schedule or after `sync`; it needs the graph server, not a scan.
+
 `--json` prints the raw result. `--no-sync` answers from the graph as it is.
 
 | Exit code | Meaning |

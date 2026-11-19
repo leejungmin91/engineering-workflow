@@ -29,7 +29,7 @@ LABELS = {
         "clear": "Nothing left to start.", "after": "after", "everyone": "Everyone", "records": "Recent work records",
         "need": "Decisions", "ok": "Nothing blocked", "signal": "Signal", "focus": "Now", "on": "On track",
         "order": "Boards with decisions or blocked work come first", "close": "Close", "picture": "Picture",
-        "prev": "Previous", "nextpic": "Next",
+        "prev": "Previous", "nextpic": "Next", "registry": "Registry: graph, judge, models, connection",
     },
     "ko": {
         "progress": "전체 진행률", "of": "/", "tasks": "작업 완료", "doing": "진행 중", "todo": "남은 일",
@@ -40,7 +40,7 @@ LABELS = {
         "clear": "남은 작업이 없습니다.", "after": "다음", "everyone": "전체", "records": "최근 작업 기록",
         "need": "결정 필요", "ok": "막힌 것 없음", "signal": "신호", "focus": "지금", "on": "순조",
         "order": "결정이나 막힘이 있는 보드가 위에 옵니다", "close": "닫기", "picture": "그림",
-        "prev": "이전", "nextpic": "다음",
+        "prev": "이전", "nextpic": "다음", "registry": "등록부: 그래프, 판단, 모델, 연결",
     },
 }
 BAR_ORDER = ("done", "doing", "parked", "blocked", "todo")
@@ -453,7 +453,7 @@ def render(board, root, stamp, refresh=5, at=0):
     return page(board["title"], body, refresh, board["lang"])
 
 
-def overview(entries, lang, refresh=5):
+def overview(entries, lang, refresh=5, registry=False):
     words = LABELS[lang]
     esc = html.escape
 
@@ -481,7 +481,8 @@ def overview(entries, lang, refresh=5):
             ("project", ""), ("signal", ""), ("progress", ""), ("focus", " class=\"opt\""), ("updated", "")))
         table = (f"<div class=\"card\" style=\"padding:0\"><table><thead><tr>{head}</tr></thead>"
                  f"<tbody>{''.join(rows)}</tbody></table></div>")
-    body = (f"<header><h1>{esc(words['all'])}</h1><span class=\"spacer\"></span>"
+    link = f"<a class=\"chip\" href=\"registry.html\">{esc(words['registry'])}</a>" if registry else ""
+    body = (f"<header><h1>{esc(words['all'])}</h1>{link}<span class=\"spacer\"></span>"
             f"<span class=\"meta\">{esc(words['order'])}</span></header>{table}")
     return page(words["all"], body, refresh, lang)
 
@@ -568,7 +569,7 @@ def publish(board_path, root=None, out=None):
             entries.append(entry)
         except (OSError, ValueError, KeyError, TypeError, RecursionError):
             continue
-    write(folder / "index.html", overview(entries, board["lang"]))
+    write(folder / "index.html", overview(entries, board["lang"], registry=(folder / "registry.html").is_file()))
     return folder / f"{name}.html"
 
 

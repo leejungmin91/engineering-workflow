@@ -236,6 +236,14 @@ class BoardTests(Case):
         self.assertEqual((self.home / "assets" / "y.png").read_bytes(), b"inside")
         self.assertFalse((self.home / "assets" / "x.png").exists())
 
+    def test_overview_links_the_registry_page_when_it_exists(self):
+        self.save([task("a")])
+        self.page()
+        self.assertNotIn("registry.html", (self.home / "index.html").read_text(encoding="utf-8"))
+        (self.home / "registry.html").write_text("x", encoding="utf-8")
+        self.page()
+        self.assertIn('href="registry.html"', (self.home / "index.html").read_text(encoding="utf-8"))
+
     def test_korean_labels_and_unknown_language_falls_back(self):
         self.save([task("a", "done")], lang="ko")
         self.assertIn("전체 진행률", self.page())

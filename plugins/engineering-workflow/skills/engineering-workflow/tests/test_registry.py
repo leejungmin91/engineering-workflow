@@ -18,6 +18,7 @@ sys.path.insert(0, str(SCRIPTS))
 sys.path.insert(0, str(HERE))
 
 import registry
+import registry_scan
 import registry_neo4j as graph
 import test_registry_scan as fixtures
 
@@ -405,6 +406,18 @@ class LiveTests(unittest.TestCase):
         report = registry.refresh(self.store, str(self.config))
         self.assertIn(str(fresh), report["removed"])
         self.assertEqual(graph.counts(self.store), before)
+
+    def test_a_scan_missing_many_files_cannot_empty_the_graph(self):
+        before = graph.counts(self.store)
+        scanned = registry_scan.scan(json.loads(self.config.read_text(encoding="utf-8")))
+        kept = dict(list(scanned["files"].items())[:2])
+        changed = {path: dict(entry, hash="other", nodes=entry["nodes"][:0]) for path, entry in kept.items()}
+        report = graph.sync(self.store, {"files": changed})
+        self.assertEqual((report["removed"], report["changed"]), ([], []))
+        self.assertGreater(len(report["held"]), 0)
+        self.assertEqual(graph.counts(self.store), before)
+        report = graph.sync(self.store, {"files": kept}, rebuild=True)
+        self.assertEqual(graph.counts(self.store)["files"], 2)
 
     def test_command_prints_few_lines_and_reports_unknown_names(self):
         base = ["--space", SPACE, "--config", str(self.config)]
