@@ -1,0 +1,2 @@
+환불 = skill:payments
+가게 = app:shop

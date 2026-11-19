@@ -156,6 +156,7 @@ status_line = ["model-with-reasoning", "context-used", "context-remaining", "con
 
 ## 더 읽기
 
+- [방법: 여러 에이전트로 여러 앱 운영하기](docs/method.ko.md). 새로 받은 저장소에서 바로 도는 예제: `python3 examples/harness-demo/run.py`
 - [전체 실행 흐름·교차검토·보고서 구조도](docs/workflow-flow.md)
 - [여러 도구로 배포한 작업 보고서](docs/implementation-report.md)
 - [훅 범위와 선택형 스킬 색인 훅](plugins/engineering-workflow/skills/engineering-workflow/references/hook-recommendations.md)

@@ -156,6 +156,7 @@ See the [source notes](plugins/engineering-workflow/skills/engineering-workflow/
 
 ## Further reading
 
+- [The method: running many apps with several agents](docs/method.md), with a demo that runs from a fresh checkout: `python3 examples/harness-demo/run.py`
 - [Workflow, cross-review, and report diagrams](docs/workflow-flow.md)
 - [Multi-host implementation report](docs/implementation-report.md)
 - [Hook scope and the optional skill index hook](plugins/engineering-workflow/skills/engineering-workflow/references/hook-recommendations.md)

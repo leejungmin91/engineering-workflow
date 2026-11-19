@@ -1,0 +1,13 @@
+{
+ "apps": [
+  {
+   "name": "shop",
+   "path": "examples/harness-demo/shop"
+  },
+  {
+   "name": "cafe",
+   "path": "examples/harness-demo/cafe"
+  }
+ ],
+ "glossary": "examples/harness-demo/glossary.txt"
+}

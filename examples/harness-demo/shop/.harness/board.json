@@ -1,0 +1,35 @@
+{
+ "title": "shop",
+ "lang": "en",
+ "tasks": [
+  {
+   "id": "T1",
+   "title": "Round refunds per line item",
+   "status": "done"
+  },
+  {
+   "id": "T2",
+   "title": "Show refund history",
+   "status": "doing",
+   "after": [
+    "T1"
+   ],
+   "owner": "build"
+  },
+  {
+   "id": "T3",
+   "title": "Refund by store credit",
+   "status": "todo",
+   "after": [
+    "T2"
+   ]
+  }
+ ],
+ "decisions": [
+  {
+   "ask": "Refund to store credit by default?",
+   "look": "payments/refund.md",
+   "default": "Refund to the card"
+  }
+ ]
+}
