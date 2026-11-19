@@ -38,7 +38,7 @@ The task graph selects checks from the final diff. Copy-only and image-only chan
 
 Independent review checks the diff and evidence when requested or when shared contracts, data, permissions, or deployments change. The final report lists the result, checks run, open issues, applied skills, actual model settings, and observed usage. The workflow chooses the lightest suitable model for each role when the host offers a choice. For a fixed session, the report records the host's settings.
 
-The plugin installs two hooks. When the assistant finishes a turn, the work left in the repository is committed and pushed. In a project with a board file, a local HTML [progress board](plugins/engineering-workflow/skills/engineering-workflow/references/board.md) opens at the start of a session and redraws as tasks change. This harness is for personal projects, so finished work is never held back waiting for a commit request. See [Hooks](#hooks). Slack and Discord MCP can provide task context and stay optional. See the [skill index guide](plugins/engineering-workflow/skills/engineering-workflow/references/skill-index.md) and [MCP setup](docs/mcp-setup.md).
+The plugin installs three hooks. When the assistant finishes a turn, the work left in the repository is committed and pushed. With a [registry](plugins/engineering-workflow/skills/engineering-workflow/references/registry.md) configured, a prompt gets up to three matching skills, rules, or earlier work records attached. In a project with a board file, a local HTML [progress board](plugins/engineering-workflow/skills/engineering-workflow/references/board.md) opens at the start of a session and redraws as tasks change. This harness is for personal projects, so finished work is never held back waiting for a commit request. See [Hooks](#hooks). Slack and Discord MCP can provide task context and stay optional. See the [skill index guide](plugins/engineering-workflow/skills/engineering-workflow/references/skill-index.md) and [MCP setup](docs/mcp-setup.md).
 
 ## Install
 
@@ -80,12 +80,13 @@ Copy the entire [engineering-workflow skill directory](plugins/engineering-workf
 
 ## Hooks
 
-The plugin bundles two hooks for Claude Code and Codex. In Codex, review and trust them with `/hooks` in the CLI or **Settings → Hooks** in the desktop app. [Codex hook trust](https://learn.chatgpt.com/docs/hooks#review-and-trust-hooks)
+The plugin bundles three hooks for Claude Code and Codex. In Codex, review and trust them with `/hooks` in the CLI or **Settings → Hooks** in the desktop app. [Codex hook trust](https://learn.chatgpt.com/docs/hooks#review-and-trust-hooks)
 
 | Hook | Event | What it does |
 | --- | --- | --- |
 | `auto_commit_push` | `Stop` | When the assistant finishes a turn, stages remaining changes with `git add -A`, commits with the subject `Update <top-level paths>`, and pushes local commits using the repository's Git configuration. A branch without an upstream is pushed to the same branch on `origin` when that remote exists. |
 | `board` | `SessionStart`, `PostToolUse`, `Stop` | When the project has `.harness/board.json`, renders the progress board (progress, task list, decisions waiting for the user) to a local HTML page outside the repository, opens it once per session, and redraws it when the file changes. Does nothing without a board file. |
+| `registry_hook` | `UserPromptSubmit` | When a registry config exists, searches the registry for the prompt and attaches at most three candidates the current project can reach. Does nothing without a config, never blocks a prompt, and never writes the prompt to disk. |
 
 `auto_commit_push` also pushes hand-written commits when the worktree is clean. Failures appear as a message, and a later turn retries a failed push while the commits are still local. Set `AUTO_COMMIT_TRAILER` to supply a custom `Co-Authored-By` trailer. Use `--dry-run` to preview a commit with a temporary Git index.
 

@@ -1,5 +1,5 @@
 {
-  "description": "Engineering Workflow hooks render the progress board when a project has one, and commit and push the work left in the repository when the assistant finishes a turn.",
+  "description": "Engineering Workflow hooks render the progress board when a project has one, attach registry candidates to a prompt when a registry is configured, and commit and push the work left in the repository when the assistant finishes a turn.",
   "hooks": {
     "SessionStart": [
       {
@@ -37,6 +37,17 @@
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/auto_commit_push.sh\"",
             "timeout": 120,
             "statusMessage": "Committing and pushing changes..."
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 10,
+            "command": "command -v python3 >/dev/null 2>&1 && python3 \"${CLAUDE_PLUGIN_ROOT}/skills/engineering-workflow/scripts/registry_hook.py\" || true"
           }
         ]
       }

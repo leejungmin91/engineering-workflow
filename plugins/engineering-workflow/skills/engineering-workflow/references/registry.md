@@ -52,6 +52,18 @@ python3 scripts/registry.py sync --rebuild
 | 1 | The name matched nothing, or matched several nodes (they are listed) |
 | 2 | The config or the graph server is unavailable |
 
+## Prompt hook
+
+The plugin registers `scripts/registry_hook.py` on `UserPromptSubmit`. It does nothing unless a registry config exists. With one, it searches skills, rules, and work records for the prompt and attaches at most three candidates as a short hint.
+
+- Skills and rules are attached only when the app at the working directory can reach them. Outside a listed app, only user-level skills and rules pass. Work records from any app can be attached, because earlier work elsewhere is the point.
+- The built-in judge keeps a candidate when its score is at least 5 and at least 70% of the best score. It is word matching, so it stays quiet rather than guess. On 40 real prompts it attached candidates to 6.
+- `HARNESS_REGISTRY_JUDGE` names a command that decides instead. It receives `{"prompt", "limit", "candidates": [{"id", "type", "name", "text"}]}` on standard input, with up to six candidates, and prints a JSON list of the ids to keep. Ids it was not given are ignored. If it fails or takes longer than three seconds, the built-in judge decides.
+- The hook never blocks a prompt. A stopped server, a broken config, or any error ends in no output. All registry queries share a six-second budget.
+- The prompt is never written to disk. `HARNESS_REGISTRY_LOG` names a folder for `hook.jsonl`, which holds the time, the judge used, seconds, counts, the top score, and the chosen ids.
+- Candidate text comes from files. It is cut to 110 characters, flattened to one line, stripped of markup, and labeled as a description, not an instruction.
+- `HARNESS_REGISTRY_HOOK_SYNC=0` skips the scan before the search.
+
 ## Setup
 
 1. Install Neo4j Community and start it on this machine. Keep it on `127.0.0.1` and switch off usage reporting (`dbms.usage_report.enabled=false`).

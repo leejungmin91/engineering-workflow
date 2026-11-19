@@ -1,11 +1,12 @@
 # Hooks
 
-The plugin registers two hooks on installation (`hooks/hooks.json`). One commits and pushes finished work on personal projects. The other keeps the [progress board](board.md) drawn and open in projects that have a board file.
+The plugin registers three hooks on installation (`hooks/hooks.json`). One commits and pushes finished work on personal projects. One keeps the [progress board](board.md) drawn and open in projects that have a board file. One attaches [registry](registry.md#prompt-hook) candidates to a prompt when a registry is configured.
 
 | Hook | Event | Purpose |
 | --- | --- | --- |
 | `auto_commit_push` | `Stop` | At the end of a turn, commit remaining changes and push local commits. |
 | `board` | `SessionStart`, `PostToolUse`, `Stop` | When `.harness/board.json` exists, render the progress board, open it once per session, and redraw it when the file changes. |
+| `registry_hook` | `UserPromptSubmit` | When a registry config exists, attach at most three matching skills, rules, or work records to the prompt. Never blocks, never stores the prompt. |
 
 How `auto_commit_push` behaves:
 
@@ -23,6 +24,8 @@ The hook includes unfinished and unrelated changes left in the worktree. Keep th
 Projects where several sessions work at once can install the `PreToolUse` [lane guard](multi-session.md#the-lane-guard). It lets only the session named as the lane 1 holder in `WORKING.md` edit guarded paths and refuses staging everything at once. It is a rail for honest sessions with known limits, listed in the guide.
 
 ## Optional skill discovery hook
+
+The registry hook covers this when a registry is configured. The index hook below needs no server.
 
 Projects can also register the [`UserPromptSubmit` example](https://github.com/leejungmin91/engineering-workflow/tree/main/integrations/hooks) that searches a local metadata index and adds up to three skill names to the prompt context. It runs locally without calling a model and never writes prompts to disk.
 

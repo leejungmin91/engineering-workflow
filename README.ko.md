@@ -40,7 +40,7 @@ flowchart TB
 
 요청이 있거나 공용 계약, 데이터, 권한, 배포에 영향이 있으면 교차검토로 최종 변경과 검증 근거를 확인합니다. 마지막 보고에는 결과, 실행한 검사, 남은 문제, 실제 적용한 스킬, 모델과 추론 강도, 확인한 사용량이 들어갑니다. 모델 선택이 가능한 도구에서는 역할마다 해당 작업을 감당할 수 있는 가장 가벼운 모델을 사용합니다. 세션 설정이 고정되어 있으면 도구가 지정한 모델과 추론 강도를 보고합니다.
 
-플러그인을 설치하면 훅 두 개가 함께 등록됩니다. 어시스턴트가 턴을 마치면 저장소에 남은 변경을 커밋하고 푸시합니다. 보드 파일이 있는 프로젝트에서는 세션을 시작할 때 로컬 HTML [진행 보드](plugins/engineering-workflow/skills/engineering-workflow/references/board.md)를 띄우고, 작업 상태가 바뀌면 다시 그립니다. 이 하네스는 개인 프로젝트용이라, 끝난 작업을 커밋 요청이 올 때까지 붙들어 두지 않습니다. [훅](#훅) 절을 보세요. Slack·Discord MCP는 필요할 때 관련 맥락을 읽는 선택 사항입니다. [스킬 인덱스 안내](plugins/engineering-workflow/skills/engineering-workflow/references/skill-index.md) · [MCP 연동](docs/mcp-setup.md)
+플러그인을 설치하면 훅 세 개가 함께 등록됩니다. 어시스턴트가 턴을 마치면 저장소에 남은 변경을 커밋하고 푸시합니다. [등록부](plugins/engineering-workflow/skills/engineering-workflow/references/registry.md)를 설정하면 프롬프트에 맞는 스킬·규칙·이전 작업 기록을 3개 이내로 붙여 줍니다. 보드 파일이 있는 프로젝트에서는 세션을 시작할 때 로컬 HTML [진행 보드](plugins/engineering-workflow/skills/engineering-workflow/references/board.md)를 띄우고, 작업 상태가 바뀌면 다시 그립니다. 이 하네스는 개인 프로젝트용이라, 끝난 작업을 커밋 요청이 올 때까지 붙들어 두지 않습니다. [훅](#훅) 절을 보세요. Slack·Discord MCP는 필요할 때 관련 맥락을 읽는 선택 사항입니다. [스킬 인덱스 안내](plugins/engineering-workflow/skills/engineering-workflow/references/skill-index.md) · [MCP 연동](docs/mcp-setup.md)
 
 ## 설치
 
@@ -80,12 +80,13 @@ claude plugin install engineering-workflow@engineering-workflow
 
 ## 훅
 
-플러그인은 Claude Code와 Codex에 훅 두 개를 제공합니다. Codex CLI에서는 `/hooks`, 데스크톱 앱에서는 **설정 → Hooks**에서 훅을 검토하고 신뢰를 승인합니다. [Codex 훅 승인 안내](https://learn.chatgpt.com/docs/hooks#review-and-trust-hooks)
+플러그인은 Claude Code와 Codex에 훅 세 개를 제공합니다. Codex CLI에서는 `/hooks`, 데스크톱 앱에서는 **설정 → Hooks**에서 훅을 검토하고 신뢰를 승인합니다. [Codex 훅 승인 안내](https://learn.chatgpt.com/docs/hooks#review-and-trust-hooks)
 
 | 훅 | 이벤트 | 동작 |
 | --- | --- | --- |
 | `auto_commit_push` | `Stop` | 어시스턴트가 턴을 마치면 `git add -A`로 남은 변경을 스테이징하고 `Update <최상위 경로>` 제목으로 커밋합니다. 로컬 커밋은 저장소의 Git 설정에 따라 푸시합니다. 업스트림이 없고 `origin`이 있으면 같은 이름의 원격 브랜치로 푸시합니다. |
 | `board` | `SessionStart`·`PostToolUse`·`Stop` | 프로젝트에 `.harness/board.json`이 있으면 진행 보드(진행률, 작업 목록, 결정 대기)를 저장소 밖의 로컬 HTML로 그려 세션마다 한 번 띄우고, 파일이 바뀌면 다시 그립니다. 보드 파일이 없으면 아무것도 하지 않습니다. |
+| `registry_hook` | `UserPromptSubmit` | 등록부 설정이 있으면 프롬프트로 등록부를 찾아, 지금 프로젝트에서 쓸 수 있는 후보를 3개 이내로 붙입니다. 설정이 없으면 아무것도 하지 않고, 프롬프트를 막지 않으며, 프롬프트를 디스크에 쓰지 않습니다. |
 
 작업 트리가 깨끗해도 직접 만든 로컬 커밋을 푸시합니다. 실패는 메시지로 알리며, 커밋이 로컬에 남아 있으면 다음 턴 종료 시 푸시를 재시도합니다. `AUTO_COMMIT_TRAILER`로 `Co-Authored-By` 트레일러를 바꾸고, `--dry-run`으로 임시 Git 인덱스를 사용해 커밋을 미리 볼 수 있습니다.
 

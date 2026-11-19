@@ -1,6 +1,6 @@
 # Registry design
 
-Status: the [progress board](../plugins/engineering-workflow/skills/engineering-workflow/references/board.md) the [scanner](#scanner), a Neo4j store, and the [query commands](../plugins/engineering-workflow/skills/engineering-workflow/references/registry.md) and the Korean language layer are shipped. The prompt hook is design and not shipped yet. Session and Machine nodes are not read yet.
+Status: the [progress board](../plugins/engineering-workflow/skills/engineering-workflow/references/board.md) the [scanner](#scanner), a Neo4j store, and the [query commands](../plugins/engineering-workflow/skills/engineering-workflow/references/registry.md) the Korean language layer, and the prompt hook are shipped. Session and Machine nodes are not read yet.
 
 The registry answers questions that span many projects: which skill fits this prompt, what did we do about this six months ago, what breaks if this skill changes, where did this asset come from. An agent that works these out by itself searches again and again, and every search result stays in its context. The registry follows the links once and returns a few lines.
 

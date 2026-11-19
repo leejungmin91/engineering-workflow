@@ -3,6 +3,7 @@ import json
 import os
 import re
 import subprocess
+import time
 import urllib.error
 import urllib.request
 
@@ -32,12 +33,19 @@ class Store:
         self.headers = {"Content-Type": "application/json", "Accept": "application/json",
                         "Authorization": f"Basic {token}"}
         self.node, self.file, self.index = space, f"{space}File", f"{space.lower()}_search"
+        self.timeout = 30
+        self.deadline = None
 
     def run(self, statement, **parameters):
         body = json.dumps({"statement": statement, "parameters": parameters}).encode("utf-8")
         request = urllib.request.Request(self.url, data=body, headers=self.headers, method="POST")
+        wait = self.timeout
+        if self.deadline is not None:
+            wait = min(wait, self.deadline - time.monotonic())
+            if wait <= 0.05:
+                raise StoreError("out of time")
         try:
-            with urllib.request.urlopen(request, timeout=30) as response:
+            with urllib.request.urlopen(request, timeout=wait) as response:
                 data = json.load(response)
         except urllib.error.HTTPError as error:
             detail = error.read().decode("utf-8", "replace")[:300]
@@ -242,13 +250,14 @@ def find(store, words, kind=None, limit=5):
     phrase = " ".join(words)
     rows = store.run(f"MATCH (t:{n}:Term) WHERE $phrase CONTAINS t.name OPTIONAL MATCH (t)-[:ALIAS_OF]->(x:{n}) "
                      "RETURN DISTINCT t.name AS term, t.means AS means, x.id AS id, x.type AS type, x.name AS name, "
-                     "x.path AS path", phrase=phrase)
+                     "x.path AS path, left(coalesce(x.text, ''), 160) AS text", phrase=phrase)
     terms = [row for row in rows if any(registry_text.names(word, row["term"]) for word in words)
              or (" " in row["term"] and row["term"] in phrase)]
     hits, seen = [], set()
     for row in terms:
         if row["id"] and row["id"] not in seen and (not kind or row["type"] == kind):
-            hits.append({"id": row["id"], "type": row["type"], "name": row["name"], "path": row["path"], "score": None})
+            hits.append({"id": row["id"], "type": row["type"], "name": row["name"], "path": row["path"],
+                         "text": row["text"], "score": None})
             seen.add(row["id"])
     meanings = [word for row in terms if row["means"] and not row["id"] for word in row["means"].split()]
     query = lucene(words, [form for form in registry_text.expand(words) + meanings if form not in words])
@@ -257,12 +266,42 @@ def find(store, words, kind=None, limit=5):
             f"CALL db.index.fulltext.queryNodes('{store.index}', $q) YIELD node, score "
             "WHERE ($kind IS NULL OR node.type = $kind) AND node.type <> 'term' "
             "RETURN node.id AS id, node.type AS type, node.name AS name, node.path AS path, "
-            "round(score, 2) AS score LIMIT $limit", q=query, kind=kind, limit=limit + len(seen))
+            "left(coalesce(node.text, ''), 160) AS text, round(score, 2) AS score LIMIT $limit",
+            q=query, kind=kind, limit=limit + len(seen))
         for row in rows:
             if row["id"] not in seen:
                 hits.append(row)
                 seen.add(row["id"])
     return hits[:limit]
+
+
+def app_at(store, folder):
+    paths = []
+    current = os.path.abspath(folder)
+    while current not in paths:
+        paths.append(current)
+        current = os.path.dirname(current)
+    rows = store.run(f"MATCH (a:{store.node}:App) WHERE a.path IN $paths RETURN a.id AS id, a.path AS path", paths=paths)
+    return max(rows, key=lambda row: len(row["path"]))["id"] if rows else None
+
+
+def within(store, app_id, ids):
+    n = store.node
+    rows = store.run(
+        f"MATCH (a:{n} {{id: $app}}) UNWIND $ids AS id MATCH (s:{n} {{id: id}}) "
+        f"WHERE (a)-[:HAS|USES|INSTALLED]->(s) OR (a)-[:USES|INSTALLED]->(:{n}:Plugin)-[:PROVIDES]->(s) "
+        "OR (s)-[:APPLIES_TO]->(a) RETURN DISTINCT s.id AS id", app=app_id, ids=ids)
+    return {row["id"] for row in rows}
+
+
+def shared(store, ids):
+    n = store.node
+    rows = store.run(
+        f"UNWIND $ids AS id MATCH (s:{n} {{id: id}}) "
+        f"WHERE (:{n})-[:HAS {{scope: 'user'}}]->(s) "
+        f"OR (:{n})-[:USES {{scope: 'user'}}]->(:{n}:Plugin)-[:PROVIDES]->(s) "
+        f"OR (s)-[:APPLIES_TO {{scope: 'user'}}]->(:{n}) RETURN DISTINCT s.id AS id", ids=ids)
+    return {row["id"] for row in rows}
 
 
 def neighbors(store, node_id, kind=None, limit=60):
