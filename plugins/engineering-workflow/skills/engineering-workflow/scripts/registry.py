@@ -10,7 +10,7 @@ import registry_neo4j as graph
 import registry_scan
 
 DEFAULT_CONFIG = Path.home() / ".config" / "engineering-workflow" / "registry.json"
-NODE_COMMANDS = ("neighbors", "impact", "spread", "lineage", "needs", "latest")
+NODE_COMMANDS = ("neighbors", "impact", "spread", "lineage", "needs", "latest", "sessions")
 
 
 def config_path(given):
@@ -93,6 +93,16 @@ def show_unused(data):
     return lines
 
 
+def show_sessions(rows):
+    lines = []
+    for row in rows:
+        lines.append(join(row["name"], f"on {', '.join(row['machines'])}" if row["machines"] else "machine unknown",
+                          row["session_id"]))
+        lines.append(f"  {row['text']}")
+        lines += [f"  holds {item['lane']}: {item['work']}" for item in row["holds"]]
+    return lines or ["no sessions in WORKING.md"]
+
+
 def show_status(data):
     lines = [f"nodes {data['nodes']}  links {data['links']}  files {data['files']}",
              "  ".join(f"{kind} {total}" for kind, total in data["types"].items())]
@@ -168,6 +178,9 @@ def main(argv=None):
             elif args.command == "latest":
                 result = graph.latest(store, node)
                 lines = [row["id"] for row in result]
+            elif args.command == "sessions":
+                result = graph.sessions(store, node)
+                lines = [node] + show_sessions(result)
             elif args.command == "unused":
                 result = graph.unused(store)
                 lines = show_unused(result)

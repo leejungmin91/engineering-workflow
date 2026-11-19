@@ -12,10 +12,10 @@ import registry_text
 NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*")
 RESERVED = {"id", "type", "from", "to"}
 TYPES = ("app", "plugin", "skill", "tool", "model", "task", "decision", "record", "commit", "asset", "source", "rule",
-         "term", "checkout")
+         "term", "checkout", "session", "machine")
 LINKS = ("USES", "DISABLES", "INSTALLED", "PROVIDES", "HAS", "REQUIRES", "SUPERSEDES", "PREFERS", "AFTER", "IN",
          "AFFECTS", "FOR", "USED", "RAN_ON", "PRODUCED", "CONCERNS", "REVIEWED_BY", "VERSION_OF", "FROM", "MADE_BY",
-         "APPROVED", "APPLIES_TO", "ALIAS_OF")
+         "APPROVED", "APPLIES_TO", "ALIAS_OF", "HOLDS", "ON")
 REACH = "HAS|USES|INSTALLED|DISABLES"
 OPEN = ["todo", "doing", "blocked", "parked"]
 
@@ -396,6 +396,17 @@ def unused(store):
         f"MATCH (s:{n}:Skill) WHERE size(coalesce(s.srcs, [])) > 0 AND NOT (:{n}:Record)-[:USED]->(s) "
         "RETURN s.id AS id ORDER BY id") if logged else []
     return {"unreachable": rows, "never_recorded": never, "records_with_skills": logged}
+
+
+def sessions(store, app_id):
+    n = store.node
+    return store.run(
+        f"MATCH (s:{n}:Session)-[:IN]->(:{n} {{id: $id}}) OPTIONAL MATCH (s)-[:ON]->(m:{n}) "
+        f"OPTIONAL MATCH (s)-[h:HOLDS]->(t:{n}) "
+        "WITH s, m, h, t ORDER BY h.lane, t.name "
+        "RETURN s.id AS id, s.name AS name, s.session_id AS session_id, s.text AS text, "
+        "collect(DISTINCT m.name) AS machines, "
+        "[x IN collect({lane: h.lane, work: t.name}) WHERE x.work IS NOT NULL] AS holds ORDER BY name", id=app_id)
 
 
 def status(store):

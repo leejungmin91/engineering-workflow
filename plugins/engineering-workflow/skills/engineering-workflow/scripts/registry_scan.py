@@ -11,6 +11,13 @@ TARGET = re.compile(r"(app|plugin|skill|tool|model|rule|asset|record|task|decisi
 HEADING = re.compile(r"^## +(.+?)\s*$")
 TRAILING_NOTE = re.compile(r"\s*\([^()]*\)\s*$")
 FENCE = re.compile(r"^(```|~~~)")
+FENCE_OPEN = re.compile(r"^ {0,3}(`{3,}|~{3,})")
+TOP_HEADING = re.compile(r"^ {0,3}(#{1,2})[ \t]+(.+?)\s*$")
+LANE_MARK = "~"
+SESSION_LINE = re.compile(r"([A-Za-z][\w-]{0,30}):\s+(.+)")
+SESSION_ID = re.compile(r"session_id=([0-9a-fA-F-]{8,})")
+LANE = re.compile(r"lane\s*(\d+)", re.IGNORECASE)
+LINE_LIMIT = 400
 
 
 def slug(value):
@@ -190,6 +197,8 @@ def board_facts(content, origin):
     app, name = origin["app"], origin["app"].split(":", 1)[1]
     nodes, links = [], []
     for task in data.get("tasks", []):
+        if str(task["id"]).startswith(LANE_MARK):
+            continue
         key = f"{name}/{task['id']}"
         nodes.append(node("task", key, name=task.get("title") or task["id"], status=task.get("status", "todo"),
                           owner=task.get("owner"), text=task.get("note")))
@@ -287,9 +296,87 @@ def glossary_facts(content, origin):
     return nodes, links
 
 
+def fence_mark(line, opened):
+    found = FENCE_OPEN.match(line)
+    if not found:
+        return opened
+    mark = found.group(1)
+    if opened is None:
+        return mark
+    if mark[0] == opened[0] and len(mark) >= len(opened) and not line.strip()[len(mark):].strip():
+        return None
+    return opened
+
+
+def bullets(content):
+    sections, current, opened = {}, None, None
+    for line in content.splitlines():
+        was = opened
+        opened = fence_mark(line, opened)
+        if was is not None or opened is not None:
+            continue
+        heading = TOP_HEADING.match(line)
+        if heading:
+            current = sections.setdefault(heading.group(2), []) if len(heading.group(1)) == 2 else None
+        elif current is None:
+            continue
+        elif line.startswith("- "):
+            current.append(line[2:].strip())
+        elif current and line[:1].isspace() and line.strip():
+            current[-1] = f"{current[-1]} {line.strip()}"
+    return sections
+
+
+def working_facts(content, origin):
+    app, name = origin["app"], origin["app"].split(":", 1)[1]
+    sections = bullets(content)
+    people, notes = {}, []
+    for title, lines in sections.items():
+        if title.strip().lower() != "sessions":
+            continue
+        for line in lines:
+            shaped = SESSION_LINE.match(line)
+            if shaped:
+                people[shaped.group(1)] = [shaped.group(2)]
+            else:
+                notes.append(line)
+    for note in notes:
+        for who, text in people.items():
+            if re.search(rf"\b{re.escape(who)}\b", note):
+                text.append(note)
+    nodes, links = [], []
+    machine = origin.get("machine")
+    if machine:
+        nodes.append(node("machine", machine))
+    for who, text in people.items():
+        me = f"session:{name}/{who}"
+        found = SESSION_ID.search(text[0])
+        nodes.append(node("session", f"{name}/{who}", name=who, session_id=found.group(1) if found else None,
+                          text=" ".join(text)[:BODY_LIMIT]))
+        links.append(link(me, "IN", app))
+        if machine:
+            links.append(link(me, "ON", f"machine:{machine}"))
+    for title, lines in sections.items():
+        lane = LANE.match(title.strip())
+        if not lane:
+            continue
+        label = TRAILING_NOTE.sub("", title).strip() or title.strip()
+        for line in lines:
+            who = re.match(r"[\w-]+", line)
+            if not who or who.group(0) not in people:
+                continue
+            work = line.split(": ", 1)[1] if ": " in line else line
+            digest = hashlib.sha256(f"{who.group(0)}\n{work}".encode("utf-8")).hexdigest()[:12]
+            key = f"{name}/{LANE_MARK}lane{lane.group(1)}-{digest}"
+            nodes.append(node("task", key, name=work[:LINE_LIMIT], status="doing", lane=label))
+            links.append(link(f"task:{key}", "IN", app))
+            links.append(link(f"session:{name}/{who.group(0)}", "HOLDS", f"task:{key}", lane=label))
+    return nodes, links
+
+
 READERS = {"skill": skill_facts, "plugin": plugin_facts, "hooks": hooks_facts, "settings": settings_facts,
            "installed": installed_facts, "board": board_facts, "record": record_facts, "asset": asset_facts,
-           "rules": rules_facts, "glossary": glossary_facts}
+           "rules": rules_facts, "glossary": glossary_facts, "working": working_facts}
 
 
 def skill_files(folder):
@@ -305,6 +392,7 @@ def skill_files(folder):
 def discover(config):
     apps = [(item["name"], Path(item["path"])) for item in config.get("apps", [])]
     every = [f"app:{name}" for name, _ in apps]
+    machines = {item["name"]: item.get("machine") or config.get("machine") for item in config.get("apps", [])}
     sources = []
 
     def add(path, kind, **origin):
@@ -318,6 +406,7 @@ def discover(config):
             add(path, "record", app=app)
         for path in sorted((root / ".harness" / "assets").glob("*.md")) if (root / ".harness" / "assets").is_dir() else []:
             add(path, "asset", app=app)
+        add(root / "WORKING.md", "working", app=app, machine=machines.get(name))
         for rules in ("CLAUDE.md", "AGENTS.md"):
             add(root / rules, "rules", apps=[app], scope="project")
         add(root / ".claude" / "settings.json", "settings", apps=[app], scope="project")

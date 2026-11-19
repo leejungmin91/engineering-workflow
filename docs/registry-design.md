@@ -1,6 +1,6 @@
 # Registry design
 
-Status: the [progress board](../plugins/engineering-workflow/skills/engineering-workflow/references/board.md) the [scanner](#scanner), a Neo4j store, and the [query commands](../plugins/engineering-workflow/skills/engineering-workflow/references/registry.md) the Korean language layer, and the prompt hook are shipped. Session and Machine nodes are not read yet.
+Status: the [progress board](../plugins/engineering-workflow/skills/engineering-workflow/references/board.md) the [scanner](#scanner), a Neo4j store, and the [query commands](../plugins/engineering-workflow/skills/engineering-workflow/references/registry.md) the Korean language layer, and the prompt hook are shipped. Session nodes and their lane work are read from `WORKING.md`; the machine comes from the config.
 
 The registry answers questions that span many projects: which skill fits this prompt, what did we do about this six months ago, what breaks if this skill changes, where did this asset come from. An agent that works these out by itself searches again and again, and every search result stays in its context. The registry follows the links once and returns a few lines.
 
@@ -29,7 +29,7 @@ The registry answers questions that span many projects: which skill fits this pr
 | Asset | An image, model, sound, or other produced file | `.harness/assets/*.md` |
 | Source | Where an asset came from and its license | Asset records |
 | Session | One agent session and its role | `WORKING.md` |
-| Machine | A computer that runs sessions | `WORKING.md` |
+| Machine | A computer that runs sessions | `machine` in the config, for the whole config or one app |
 | Rule | One rule in an instruction file | Headings in `CLAUDE.md` and `AGENTS.md` |
 | Term | A word the user says for something | The glossary file |
 | Checkout | A worktree or copy of an app that has its own plugin install | `installed_plugins.json` entries whose path is not a listed app |
@@ -63,8 +63,8 @@ The registry answers questions that span many projects: which skill fits this pr
 | Asset | FROM | Source | Asset frontmatter `source`, `license` |
 | Asset | MADE_BY | Model | Asset frontmatter `made_by` |
 | Decision | APPROVED | Asset | Asset frontmatter `approved_by` |
-| Session | HOLDS | Task | `WORKING.md` lane lines |
-| Session | ON | Machine | `WORKING.md` session lines |
+| Session | HOLDS | Task | `WORKING.md` bullets under a `## Lane <n>` heading that start with a session name. The task is the rest of the line, with `lane` set to the heading |
+| Session | ON | Machine | Every session of an app, when the config names a machine |
 | Rule | APPLIES_TO | App | The file the rule is in. A rule in the user folder applies to every app |
 | Term | ALIAS_OF | Any node | The glossary file |
 
@@ -139,9 +139,12 @@ python3 scripts/registry_scan.py /absolute/path/to/registry.json --out /absolute
   "apps": [{"name": "shop", "path": "/absolute/path/to/shop"}],
   "user": "/absolute/path/to/.claude",
   "plugins": ["/absolute/path/to/a/plugin"],
-  "glossary": "/absolute/path/to/glossary.txt"
+  "glossary": "/absolute/path/to/glossary.txt",
+  "machine": "laptop"
 }
 ```
+
+`WORKING.md` is read loosely. Under `## Sessions`, a bullet shaped `- name: text` is a session, and a `session_id=` in it is kept. Other bullets there are added to the text of every session they name. Under `## Lane <n> ...`, a bullet that starts with a session name is that session's work. Anything else is skipped, never an error.
 
 Only `apps` is required. The output has one entry per file with its `kind`, a `hash`, and the `nodes` and `links` it states. A file that cannot be read gets an `error` and no facts, and the rest is still read.
 
@@ -160,6 +163,7 @@ A store adapter keeps the hash of every file it loaded. On the next run it repla
 | `latest <skill>` | What replaced this skill | SUPERSEDES backwards repeatedly |
 | `dupes <description>` | Does a similar skill already exist | Text search over skill descriptions |
 | `unused` | Which skills does no app use and no record mention | Skills without USES, HAS, or USED links |
+| `sessions <app>` | Which sessions work on this app, on which machine, holding what | IN backwards to sessions, then ON and HOLDS |
 
 Each command prints a few lines with node names and file paths. The agent opens only the files it needs.
 

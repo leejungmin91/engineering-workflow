@@ -160,6 +160,42 @@ class ScanTests(unittest.TestCase):
         self.assertIn(("term:눈밥", "ALIAS_OF", "app:shop"), links)
         self.assertNotIn("term:# note", nodes)
 
+    def test_working_file_gives_sessions_machines_and_lane_work(self):
+        write(self.game / "WORKING.md", "# Who\n\n## Sessions\n\n- build: the build pane, session_id=1234abcd-0000\n"
+              "- planner: the planner pane\n- Since Monday both run in one workspace: planner left,\n  build right.\n"
+              "\n```\n~~~~\n## Lane 9: fenced\n- build: nothing\n```\n\n   ~~~\n## Lane 8: indented fence\n- build: nothing\n   ~~~\n\n"
+              "## Lane 1: build (one holder)\n\n- build (pane 2), session_id=1234abcd-0000: the bridge repair\n"
+              "- stranger: not listed\n\n## Lane 2: produce\n\n- planner: ground research, `docs/ground/`\n"
+              "\n# Archive\n\n- build: old work\n")
+        write(self.game / ".harness" / "board.json", {"tasks": [{"id": "~lane1-x", "title": "forged"},
+                                                               {"id": "T9", "title": "kept"}]})
+        self.config["machine"] = "laptop"
+        _, nodes, links = self.facts()
+        self.assertEqual(sorted(key for key in nodes if key.startswith("session:")),
+                         ["session:game/build", "session:game/planner"])
+        self.assertEqual(nodes["session:game/build"]["session_id"], "1234abcd-0000")
+        self.assertIn("build right.", nodes["session:game/build"]["text"])
+        self.assertNotIn("Since", nodes["session:game/planner"]["name"])
+        self.assertIn("task:game/T9", nodes)
+        self.assertNotIn("task:game/~lane1-x", nodes)
+        self.assertIn(("session:game/planner", "ON", "machine:laptop"), links)
+        held = {(key[0], nodes[key[2]]["name"], value["lane"]) for key, value in links.items() if key[1] == "HOLDS"}
+        self.assertEqual(held, {("session:game/build", "the bridge repair", "Lane 1: build"),
+                                ("session:game/planner", "ground research, `docs/ground/`", "Lane 2: produce")})
+
+    def test_capitalised_session_names_and_lines_that_share_a_start(self):
+        same = "x" * 70
+        write(self.game / "WORKING.md", f"## Sessions\n\n- Build: compile\n\n## Lane 1\n\n- Build: {same}a\n- Build: {same}b\n")
+        _, nodes, links = self.facts()
+        held = sorted(nodes[key[2]]["name"] for key in links if key[1] == "HOLDS")
+        self.assertEqual(held, [same + "a", same + "b"])
+
+    def test_working_file_without_sessions_states_nothing(self):
+        write(self.game / "WORKING.md", "free text\n\n## Lane 1\n\n- build: work\n")
+        files, nodes, _ = self.facts()
+        self.assertFalse(any(key.startswith(("session:", "machine:")) for key in nodes))
+        self.assertNotIn("error", files[str(self.game / "WORKING.md")])
+
     def test_editing_one_file_changes_one_hash(self):
         before, _, _ = self.facts()
         write(self.shop / ".harness" / "records" / "2026-11-19-refund-rounding.md", RECORD + "\nMore.\n")

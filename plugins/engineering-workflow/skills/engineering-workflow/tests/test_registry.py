@@ -234,6 +234,17 @@ class LiveTests(unittest.TestCase):
         self.assertEqual(report["unreachable"], [])
         self.assertEqual(self.ids(report["never_recorded"]), ["skill:flow", "skill:hook-care", "skill:pay"])
 
+    def test_sessions_list_machine_and_lane_work(self):
+        fixtures.write(self.fixture.game / "WORKING.md",
+                       "## Sessions\n\n- build: the build pane\n- planner: the planner pane\n\n"
+                       "## Lane 1: build\n\n- build: the bridge repair\n")
+        registry.refresh(self.store, str(self.config))
+        rows = {row["name"]: row for row in graph.sessions(self.store, "app:game")}
+        self.assertEqual(sorted(rows), ["build", "planner"])
+        self.assertEqual(rows["build"]["holds"], [{"lane": "Lane 1: build", "work": "the bridge repair"}])
+        self.assertEqual(rows["planner"]["holds"], [])
+        self.assertEqual(graph.sessions(self.store, "app:shop"), [])
+
     def test_command_prints_few_lines_and_reports_unknown_names(self):
         base = ["--space", SPACE, "--config", str(self.config)]
         for arguments, expected in ((["neighbors", "T2"], "task:shop/T1"), (["lineage", "hero-v3"], "CC BY 4.0"),
