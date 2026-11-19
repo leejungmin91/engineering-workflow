@@ -1,6 +1,6 @@
 # Registry design
 
-Status: design. The [progress board](../plugins/engineering-workflow/skills/engineering-workflow/references/board.md) is shipped. The scanner and the query commands described here are not shipped yet.
+Status: the [progress board](../plugins/engineering-workflow/skills/engineering-workflow/references/board.md) and the [scanner](#scanner) are shipped. The query commands, the language layer, and the prompt hook are design and not shipped yet. Session and Machine nodes are not read yet.
 
 The registry answers questions that span many projects: which skill fits this prompt, what did we do about this six months ago, what breaks if this skill changes, where did this asset come from. An agent that works these out by itself searches again and again, and every search result stays in its context. The registry follows the links once and returns a few lines.
 
@@ -32,12 +32,16 @@ The registry answers questions that span many projects: which skill fits this pr
 | Machine | A computer that runs sessions | `WORKING.md` |
 | Rule | One rule in an instruction file | Headings in `CLAUDE.md` and `AGENTS.md` |
 | Term | A word the user says for something | The glossary file |
+| Checkout | A worktree or copy of an app that has its own plugin install | `installed_plugins.json` entries whose path is not a listed app |
 
 ## Links
 
 | From | Link | To | Written in |
 | --- | --- | --- | --- |
-| App | USES | Plugin | The app's enabled plugins in its settings |
+| App | USES | Plugin | Enabled plugins in the app's settings (`scope: project`) or the user settings (`scope: user`) |
+| App | DISABLES | Plugin | A plugin switched off in the app's settings |
+| App or Checkout | INSTALLED | Plugin | `installed_plugins.json`, with the installed `version` and `scope` |
+| Plugin | PROVIDES | Tool | Hook scripts registered in the plugin's `hooks.json`, with their events |
 | Plugin | PROVIDES | Skill | The plugin's skill folder |
 | App | HAS | Skill | The app's own skill folder |
 | Skill | REQUIRES | Tool or Skill | Skill frontmatter `requires` |
@@ -45,6 +49,7 @@ The registry answers questions that span many projects: which skill fits this pr
 | Skill | PREFERS | Model | Skill frontmatter `model`, `effort`, `fallback` |
 | Task | AFTER | Task | Board `after` |
 | Task | IN | App | The board's repository |
+| Decision | IN | App | Open decisions on the board, settled ones in records |
 | Decision | AFFECTS | Task | Record frontmatter `decisions` |
 | Record | FOR | Task | Record frontmatter `task` |
 | Record | IN | App | The record's repository |
@@ -120,6 +125,27 @@ The glossary is one line per term: the user's word, then the real name.
 눈밥 = app:slopes
 ```
 
+## Scanner
+
+`scripts/registry_scan.py` in the skill folder reads the files above and prints nodes and links grouped by the file each one came from. It uses the standard library only, runs nothing it reads, and needs no database.
+
+```sh
+python3 scripts/registry_scan.py /absolute/path/to/registry.json --out /absolute/path/to/graph.json
+```
+
+```json
+{
+  "apps": [{"name": "shop", "path": "/absolute/path/to/shop"}],
+  "user": "/absolute/path/to/.claude",
+  "plugins": ["/absolute/path/to/a/plugin"],
+  "glossary": "/absolute/path/to/glossary.txt"
+}
+```
+
+Only `apps` is required. The output has one entry per file with its `kind`, a `hash`, and the `nodes` and `links` it states. A file that cannot be read gets an `error` and no facts, and the rest is still read.
+
+A store adapter keeps the hash of every file it loaded. On the next run it replaces the facts of files whose hash changed, drops the facts of files that are gone, and leaves the rest alone. The hash covers the file content and which apps the file applies to, so adding an app re-reads the user-level files. A node that several files state stays until the last of them is gone. This repository does not ship an adapter: the author's runs against a local graph server and is kept private with its data.
+
 ## Commands
 
 | Command | Question it answers | Path it follows |
@@ -156,7 +182,7 @@ These come from six days of real prompts across three projects. They are the acc
 ## Order of work
 
 1. Board (shipped).
-2. Scanner: files to nodes and links, changed files only.
+2. Scanner: files to nodes and links, changed files only (shipped).
 3. Commands, checked against the question shapes with real answers.
 4. Language layer: morpheme tokens and the glossary for non-English prompts.
 5. Prompt hook: search, a judge step that can be swapped, at most three candidates.
