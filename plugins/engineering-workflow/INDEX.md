@@ -38,6 +38,7 @@
 | `skills/engineering-workflow/scripts/registry_text.py` | 등록부의 한국어 처리. 조사·어미 떼기, 한영 낱말표, 색인용 어간. 분석기 서비스가 있으면 그 명사를 쓴다 |
 | `skills/engineering-workflow/scripts/registry_kiwi_server.py` | 선택 사항. Kiwi 형태소 분석기의 명사를 이 기기에서만 내주는 작은 서비스 (`kiwipiepy` 필요) |
 | `skills/korean-copy/scripts/copy_check.py` | 한국어 문구 검사. 앱의 문체 기준(`.harness/copy-style.json`)과 교정 기록(`.harness/copy-corrections.md`)을 읽어 말투·용어·맞춤법·마침표·길이·자리표시자를 검사한다. 네트워크를 쓰지 않는다 (`skills/korean-copy/references/style-sheet.md`) |
+| `skills/engineering-workflow/scripts/app_template.py` | 새 앱 틀과 어긋남 점검. `new`는 `templates/app/`을 새 폴더에 복사하고, `drift`는 각 앱의 `CLAUDE.md`·`AGENTS.md`에서 공통 절이 빠졌거나 달라진 앱을 나열한다 (`references/app-template.md`) |
 | `skills/engineering-workflow/scripts/record.py` | 작업 기록 쓰기와 검사. 끝난 작업마다 `.harness/records/`에 작은 파일 하나를 만들고, 형식을 검사한다 (`references/records.md`) |
 | `skills/engineering-workflow/scripts/check_record.py` | 완료 기록의 검사 결과·작업본·의존성을 검사한다 |
 | `skills/engineering-workflow/scripts/lane_guard.py` | 선택형 `PreToolUse` 훅. 구현 담당 세션만 지키는 경로를 고치게 하고 전부 스테이징을 막는다 (프로젝트에 복사해서 등록, `references/multi-session.md`) |

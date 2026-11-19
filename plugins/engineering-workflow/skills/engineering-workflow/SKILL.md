@@ -77,6 +77,10 @@ Use project instructions, established tools, and the permissions already granted
 - Keep the body under about fifteen lines: what was done, why, and what was tried and dropped. The title is the commit subject.
 - To recall earlier work, search the records before reading history files or old sessions.
 
+## New apps and shared rules
+
+- Start a new app with `python3 scripts/app_template.py new <folder>`. After changing a shared rule in the template, run `python3 scripts/app_template.py drift` and update the apps it lists. See the [template guide](references/app-template.md).
+
 ## Commit and push
 
 - Commit and push finished work without a separate request. Commit only the task's changes and verify the remote branch before reporting success. The plugin's `auto_commit_push` Stop hook commits remaining changes and pushes local commits when the turn ends.
