@@ -82,6 +82,21 @@ class BoardTests(Case):
         self.assertNotIn("in a fence", content)
         self.assertEqual(content.count('class="decision"'), 2)
 
+    def test_working_file_bullets_keep_their_wrapped_lines_and_can_be_left_out(self):
+        (self.root / "WORKING.md").write_text(
+            "## Waiting for the user\n\n- Pick the ground sample:\n  all, some, or none.\n  ```text\n  example only\n  ~~~\n  ```\n"
+            "- Second\n", encoding="utf-8")
+        self.save([task("a")])
+        content = self.page()
+        self.assertIn("Pick the ground sample: all, some, or none.</", content)
+        self.assertNotIn("example only", content)
+        self.assertEqual(content.count('class="decision"'), 2)
+        self.save([task("a")], working_decisions=False)
+        self.assertEqual(self.page().count('class="decision"'), 0)
+        self.save([task("a")], working_decisions="no")
+        with self.assertRaises(ValueError):
+            board.load(self.root / ".harness" / "board.json")
+
     def test_korean_labels_and_unknown_language_falls_back(self):
         self.save([task("a", "done")], lang="ko")
         self.assertIn("전체 진행률", self.page())

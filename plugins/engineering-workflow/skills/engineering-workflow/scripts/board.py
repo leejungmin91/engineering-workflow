@@ -16,7 +16,6 @@ STATUSES = ("doing", "todo", "blocked", "parked", "done")
 MARKS = {"done": "✓", "doing": "▶", "todo": "○", "blocked": "✕", "parked": "⏸"}
 BOARD = Path(".harness") / "board.json"
 WAITING = re.compile(r"^## Waiting for the user.*?$(.*?)(?=^## |\Z)", re.S | re.M)
-FENCED = re.compile(r"^```.*?^```[^\n]*$", re.S | re.M)
 PAGE = re.compile(r"[A-Za-z0-9_.-]+\.html")
 SEEN = 50
 LABELS = {
@@ -129,9 +128,12 @@ def load(path):
                           "look": text(item.get("look"), "decision look", False),
                           "default": text(item.get("default"), "decision default", False)})
     lang = raw.get("lang", "en")
+    merge = raw.get("working_decisions", True)
+    if not isinstance(merge, bool):
+        raise ValueError("working_decisions must be true or false")
     return {"title": text(raw.get("title", "Work board"), "title"),
             "lang": lang if isinstance(lang, str) and lang in LABELS else "en",
-            "tasks": tasks, "decisions": decisions}
+            "tasks": tasks, "decisions": decisions, "working_decisions": merge}
 
 
 def working_decisions(root):
@@ -142,8 +144,20 @@ def working_decisions(root):
     section = WAITING.search(body)
     if not section:
         return []
-    lines = FENCED.sub("", section.group(1)).splitlines()
-    asks = [line[2:].strip() for line in lines if line.startswith("- ")]
+    asks, fence = [], None
+    for line in section.group(1).splitlines():
+        mark = re.match(r"\s*(`{3,}|~{3,})", line)
+        if fence is None and mark:
+            fence = mark.group(1)
+            continue
+        if fence is not None:
+            if mark and mark.group(1)[0] == fence[0] and len(mark.group(1)) >= len(fence):
+                fence = None
+            continue
+        if line.startswith("- "):
+            asks.append(line[2:].strip())
+        elif asks and line[:1].isspace() and line.strip():
+            asks[-1] = f"{asks[-1]} {line.strip()}"
     return [{"ask": ask, "look": "", "default": ""} for ask in asks if ask and ask.strip("().").lower() != "none"]
 
 
@@ -251,7 +265,8 @@ def publish(board_path, root=None, out=None):
     root = Path(os.path.abspath(root)) if root else (
         board_path.parent.parent if board_path.parent.name == BOARD.parent.name else board_path.parent)
     board = load(board_path)
-    board["decisions"] = board["decisions"] + working_decisions(root)
+    if board["working_decisions"]:
+        board["decisions"] = board["decisions"] + working_decisions(root)
     stamp = datetime.fromtimestamp(board_path.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
     content = render(board, root, stamp)
     if out:

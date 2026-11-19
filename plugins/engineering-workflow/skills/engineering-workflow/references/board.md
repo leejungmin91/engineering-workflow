@@ -23,7 +23,7 @@ Keep `.harness/board.json` at the project root and commit it with the work. It i
 
 - `status` is `todo`, `doing`, `done`, `blocked`, or `parked`. Progress is the share of tasks that are `done`, rounded down, so 100% means every task is done.
 - IDs follow the [completion record](harness-record.md) rules, and `after` lists prerequisite task IDs. Use the same IDs in both files.
-- `decisions` holds what only the user can decide: what is asked, the picture or file to look at, and the default in use meanwhile. Bullet lines under `## Waiting for the user` in `WORKING.md` are shown as well, so a multi-session project keeps one list there.
+- `decisions` holds what only the user can decide: what is asked, the picture or file to look at, and the default in use meanwhile. Bullet lines under `## Waiting for the user` in `WORKING.md` are shown as well, wrapped lines included, so a multi-session project keeps one list there. Set `"working_decisions": false` in the board when the board's own `decisions` are the list and that section holds notes the page should not repeat.
 - `lang` selects the page labels: `en` or `ko`. `owner` and `note` are optional.
 
 ## When to update it

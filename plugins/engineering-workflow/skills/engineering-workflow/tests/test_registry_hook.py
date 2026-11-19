@@ -185,6 +185,7 @@ class OfflineTests(unittest.TestCase):
             result = subprocess.run([sys.executable, str(SCRIPT)], input=payload, env=env, capture_output=True, text=True)
             self.assertEqual((result.returncode, result.stdout), (0, ""), result.stderr)
 
+    @unittest.skipUnless((HERE.parents[2] / "hooks" / "hooks.json").is_file(), "the skill is not inside the plugin")
     def test_hook_is_registered_and_quiet_without_python(self):
         hooks = json.loads((HERE.parents[2] / "hooks" / "hooks.json").read_text(encoding="utf-8"))["hooks"]
         commands = [item["command"] for group in hooks["UserPromptSubmit"] for item in group["hooks"]]
