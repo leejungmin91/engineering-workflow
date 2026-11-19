@@ -27,6 +27,12 @@ Use project instructions, established tools, and the permissions already granted
 - End a reply with the parked decisions and their defaults. Do not end with a question that blocks work.
 - This does not replace confirmation for destructive, irreversible, or outward-facing actions. Park those and leave them undone.
 
+## Progress board
+
+- Before multi-step work starts, write `.harness/board.json` with every known task, its prerequisites, and the decisions waiting for the user. Render and open it with `scripts/board.py render <board file> --open`. See the [board guide](references/board.md).
+- Update the board file when a task starts, finishes, or stops, and when a decision is parked or settled. Edit the JSON only. The plugin hooks redraw the page and open it once per session.
+- Use the same task IDs in the board and the completion record.
+
 ## Harness and task graph
 
 - Before editing, define the expected result, change scope, and required checks. Find commands in the current project's instructions, CI, and scripts. Reuse existing code and tools, preserve unrelated changes, and keep the diff focused.

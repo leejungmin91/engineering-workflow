@@ -1,0 +1,4 @@
+#!/bin/sh
+root=$(git rev-parse --show-toplevel) || exit 1
+python=$(command -v python3 || command -v python) || { echo "leak check needs Python" >&2; exit 1; }
+exec "$python" "$root/tools/leak_check.py" --staged

@@ -40,7 +40,7 @@ flowchart TB
 
 요청이 있거나 공용 계약, 데이터, 권한, 배포에 영향이 있으면 교차검토로 최종 변경과 검증 근거를 확인합니다. 마지막 보고에는 결과, 실행한 검사, 남은 문제, 실제 적용한 스킬, 모델과 추론 강도, 확인한 사용량이 들어갑니다. 모델 선택이 가능한 도구에서는 역할마다 해당 작업을 감당할 수 있는 가장 가벼운 모델을 사용합니다. 세션 설정이 고정되어 있으면 도구가 지정한 모델과 추론 강도를 보고합니다.
 
-플러그인을 설치하면 훅 하나가 함께 등록됩니다. 어시스턴트가 턴을 마치면 저장소에 남은 변경을 커밋하고 푸시합니다. 이 하네스는 개인 프로젝트용이라, 끝난 작업을 커밋 요청이 올 때까지 붙들어 두지 않습니다. [훅](#훅) 절을 보세요. Slack·Discord MCP는 필요할 때 관련 맥락을 읽는 선택 사항입니다. [스킬 인덱스 안내](plugins/engineering-workflow/skills/engineering-workflow/references/skill-index.md) · [MCP 연동](docs/mcp-setup.md)
+플러그인을 설치하면 훅 두 개가 함께 등록됩니다. 어시스턴트가 턴을 마치면 저장소에 남은 변경을 커밋하고 푸시합니다. 보드 파일이 있는 프로젝트에서는 세션을 시작할 때 로컬 HTML [진행 보드](plugins/engineering-workflow/skills/engineering-workflow/references/board.md)를 띄우고, 작업 상태가 바뀌면 다시 그립니다. 이 하네스는 개인 프로젝트용이라, 끝난 작업을 커밋 요청이 올 때까지 붙들어 두지 않습니다. [훅](#훅) 절을 보세요. Slack·Discord MCP는 필요할 때 관련 맥락을 읽는 선택 사항입니다. [스킬 인덱스 안내](plugins/engineering-workflow/skills/engineering-workflow/references/skill-index.md) · [MCP 연동](docs/mcp-setup.md)
 
 ## 설치
 
@@ -80,11 +80,12 @@ claude plugin install engineering-workflow@engineering-workflow
 
 ## 훅
 
-플러그인은 Claude Code와 Codex에 `Stop` 훅을 제공합니다. Codex CLI에서는 `/hooks`, 데스크톱 앱에서는 **설정 → Hooks**에서 훅을 검토하고 신뢰를 승인합니다. [Codex 훅 승인 안내](https://learn.chatgpt.com/docs/hooks#review-and-trust-hooks)
+플러그인은 Claude Code와 Codex에 훅 두 개를 제공합니다. Codex CLI에서는 `/hooks`, 데스크톱 앱에서는 **설정 → Hooks**에서 훅을 검토하고 신뢰를 승인합니다. [Codex 훅 승인 안내](https://learn.chatgpt.com/docs/hooks#review-and-trust-hooks)
 
 | 훅 | 이벤트 | 동작 |
 | --- | --- | --- |
 | `auto_commit_push` | `Stop` | 어시스턴트가 턴을 마치면 `git add -A`로 남은 변경을 스테이징하고 `Update <최상위 경로>` 제목으로 커밋합니다. 로컬 커밋은 저장소의 Git 설정에 따라 푸시합니다. 업스트림이 없고 `origin`이 있으면 같은 이름의 원격 브랜치로 푸시합니다. |
+| `board` | `SessionStart`·`PostToolUse`·`Stop` | 프로젝트에 `.harness/board.json`이 있으면 진행 보드(진행률, 작업 목록, 결정 대기)를 저장소 밖의 로컬 HTML로 그려 세션마다 한 번 띄우고, 파일이 바뀌면 다시 그립니다. 보드 파일이 없으면 아무것도 하지 않습니다. |
 
 작업 트리가 깨끗해도 직접 만든 로컬 커밋을 푸시합니다. 실패는 메시지로 알리며, 커밋이 로컬에 남아 있으면 다음 턴 종료 시 푸시를 재시도합니다. `AUTO_COMMIT_TRAILER`로 `Co-Authored-By` 트레일러를 바꾸고, `--dry-run`으로 임시 Git 인덱스를 사용해 커밋을 미리 볼 수 있습니다.
 
@@ -92,11 +93,13 @@ claude plugin install engineering-workflow@engineering-workflow
 
 필요한 것과 한계:
 
-- PATH에 POSIX `sh`와 `git`이 있어야 합니다(Git for Windows에 둘 다 포함). 훅에는 Python이 필요하지 않습니다.
+- PATH에 POSIX `sh`와 `git`이 있어야 합니다(Git for Windows에 둘 다 포함). `auto_commit_push`에는 Python이 필요하지 않습니다. `board` 훅은 `python3`가 필요하고, 없으면 건너뜁니다.
 - `.gitignore`가 제외하지 않은 것은 턴 끝에 남은 미완성 수정까지 모두 커밋됩니다. 비밀 값은 검사하지 않으므로 `.gitignore`, 호스트 권한, 브랜치 보호 규칙으로 막습니다.
 - 훅을 끄려면 플러그인을 끄거나 지워야 하며, 그러면 스킬도 함께 꺼집니다.
 
 훅 시험은 [`tools/hook_tests`](tools/hook_tests)에 있고 `python -m unittest discover -s tools/hook_tests`로 실행합니다. 임시 Git 저장소와 bare 원격을 만들어 훅을 실제로 돌려 봅니다.
+
+이 저장소는 공개이고 `Stop` 훅이 모든 파일을 스테이징하므로, [`tools/leak_check.py`](tools/leak_check.py)가 접근 키, 개인 키, 글 안에 대입된 비밀값, URL 안의 계정 정보, 개인 홈 경로, 비밀값·데이터베이스 파일 형식을 거부합니다. 파일과 줄만 알리고 값은 출력하지 않습니다. 저장소를 받은 뒤 `git config core.hooksPath tools/githooks`를 한 번 실행하면 커밋할 때마다 검사합니다. CI는 추적 중인 모든 파일을 검사합니다.
 
 ## 사용 예시
 
@@ -155,4 +158,6 @@ status_line = ["model-with-reasoning", "context-used", "context-remaining", "con
 - [전체 실행 흐름·교차검토·보고서 구조도](docs/workflow-flow.md)
 - [여러 도구로 배포한 작업 보고서](docs/implementation-report.md)
 - [훅 범위와 선택형 스킬 색인 훅](plugins/engineering-workflow/skills/engineering-workflow/references/hook-recommendations.md)
+- [진행 보드](plugins/engineering-workflow/skills/engineering-workflow/references/board.md)
+- [등록부 설계: 파일이 원본, 파일에서 다시 만드는 그래프, 정해진 조회 명령](docs/registry-design.md)
 - [플러그인 색인](plugins/engineering-workflow/INDEX.md) · [변경 이력](plugins/engineering-workflow/CHANGELOG.md)

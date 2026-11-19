@@ -1,12 +1,13 @@
 # Hooks
 
-The plugin registers one hook on installation (`hooks/hooks.json`). The harness commits and pushes finished work on personal projects.
+The plugin registers two hooks on installation (`hooks/hooks.json`). One commits and pushes finished work on personal projects. The other keeps the [progress board](board.md) drawn and open in projects that have a board file.
 
 | Hook | Event | Purpose |
 | --- | --- | --- |
 | `auto_commit_push` | `Stop` | At the end of a turn, commit remaining changes and push local commits. |
+| `board` | `SessionStart`, `PostToolUse`, `Stop` | When `.harness/board.json` exists, render the progress board, open it once per session, and redraw it when the file changes. |
 
-How the hook behaves:
+How `auto_commit_push` behaves:
 
 - It runs `git add -A`, so `.gitignore` excludes ignored untracked files. A clean worktree can still have local commits to push.
 - The commit subject is `Update <up to three top-level paths>` with `(+N more)` when there are more; dotfiles sort last. The body lists the changed files (`git diff --cached --name-status`) and ends with a `Co-Authored-By` trailer. `AUTO_COMMIT_TRAILER` replaces the trailer.

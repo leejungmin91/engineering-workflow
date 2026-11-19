@@ -1,9 +1,37 @@
 {
-  "description": "Engineering Workflow hooks commit and push the work left in the repository when the assistant finishes a turn.",
+  "description": "Engineering Workflow hooks render the progress board when a project has one, and commit and push the work left in the repository when the assistant finishes a turn.",
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v python3 >/dev/null 2>&1 && python3 \"${CLAUDE_PLUGIN_ROOT}/skills/engineering-workflow/scripts/board.py\" hook || true",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v python3 >/dev/null 2>&1 && python3 \"${CLAUDE_PLUGIN_ROOT}/skills/engineering-workflow/scripts/board.py\" hook || true",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
+          {
+            "type": "command",
+            "command": "command -v python3 >/dev/null 2>&1 && python3 \"${CLAUDE_PLUGIN_ROOT}/skills/engineering-workflow/scripts/board.py\" hook || true",
+            "timeout": 15
+          },
           {
             "type": "command",
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/auto_commit_push.sh\"",

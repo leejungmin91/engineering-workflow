@@ -38,7 +38,7 @@ The task graph selects checks from the final diff. Copy-only and image-only chan
 
 Independent review checks the diff and evidence when requested or when shared contracts, data, permissions, or deployments change. The final report lists the result, checks run, open issues, applied skills, actual model settings, and observed usage. The workflow chooses the lightest suitable model for each role when the host offers a choice. For a fixed session, the report records the host's settings.
 
-The plugin installs one hook: when the assistant finishes a turn, the work left in the repository is committed and pushed. This harness is for personal projects, so finished work is never held back waiting for a commit request. See [Hooks](#hooks). Slack and Discord MCP can provide task context and stay optional. See the [skill index guide](plugins/engineering-workflow/skills/engineering-workflow/references/skill-index.md) and [MCP setup](docs/mcp-setup.md).
+The plugin installs two hooks. When the assistant finishes a turn, the work left in the repository is committed and pushed. In a project with a board file, a local HTML [progress board](plugins/engineering-workflow/skills/engineering-workflow/references/board.md) opens at the start of a session and redraws as tasks change. This harness is for personal projects, so finished work is never held back waiting for a commit request. See [Hooks](#hooks). Slack and Discord MCP can provide task context and stay optional. See the [skill index guide](plugins/engineering-workflow/skills/engineering-workflow/references/skill-index.md) and [MCP setup](docs/mcp-setup.md).
 
 ## Install
 
@@ -80,23 +80,26 @@ Copy the entire [engineering-workflow skill directory](plugins/engineering-workf
 
 ## Hooks
 
-The plugin bundles a `Stop` hook for Claude Code and Codex. In Codex, review and trust it with `/hooks` in the CLI or **Settings → Hooks** in the desktop app. [Codex hook trust](https://learn.chatgpt.com/docs/hooks#review-and-trust-hooks)
+The plugin bundles two hooks for Claude Code and Codex. In Codex, review and trust them with `/hooks` in the CLI or **Settings → Hooks** in the desktop app. [Codex hook trust](https://learn.chatgpt.com/docs/hooks#review-and-trust-hooks)
 
 | Hook | Event | What it does |
 | --- | --- | --- |
 | `auto_commit_push` | `Stop` | When the assistant finishes a turn, stages remaining changes with `git add -A`, commits with the subject `Update <top-level paths>`, and pushes local commits using the repository's Git configuration. A branch without an upstream is pushed to the same branch on `origin` when that remote exists. |
+| `board` | `SessionStart`, `PostToolUse`, `Stop` | When the project has `.harness/board.json`, renders the progress board (progress, task list, decisions waiting for the user) to a local HTML page outside the repository, opens it once per session, and redraws it when the file changes. Does nothing without a board file. |
 
-The hook also pushes hand-written commits when the worktree is clean. Failures appear as a message, and a later turn retries a failed push while the commits are still local. Set `AUTO_COMMIT_TRAILER` to supply a custom `Co-Authored-By` trailer. Use `--dry-run` to preview a commit with a temporary Git index.
+`auto_commit_push` also pushes hand-written commits when the worktree is clean. Failures appear as a message, and a later turn retries a failed push while the commits are still local. Set `AUTO_COMMIT_TRAILER` to supply a custom `Co-Authored-By` trailer. Use `--dry-run` to preview a commit with a temporary Git index.
 
 When several sessions share one repository, `WORKING.md` with a `## Lane 1` section turns the commit off and leaves the push, and an optional `PreToolUse` lane guard lets only the one implementing session edit guarded paths. See the [multi-session guide](plugins/engineering-workflow/skills/engineering-workflow/references/multi-session.md).
 
 Requirements and limits:
 
-- POSIX `sh` and `git` on PATH (Git for Windows provides both). No Python is needed for the hook.
+- POSIX `sh` and `git` on PATH (Git for Windows provides both). `auto_commit_push` needs no Python. The `board` hook needs `python3` and is skipped without it.
 - Everything not ignored by `.gitignore` is committed, including half-finished edits left at the end of a turn. Secrets are not scanned; keep `.gitignore`, host permissions, and branch protection for that.
-- To stop the hook, disable or uninstall the plugin. That also turns off the skill.
+- To stop the hooks, disable or uninstall the plugin. That also turns off the skill.
 
 The hook tests live in [`tools/hook_tests`](tools/hook_tests) and run with `python -m unittest discover -s tools/hook_tests`. They create throwaway Git repositories with a bare remote and run the hook against them.
+
+This repository is public and the `Stop` hook stages everything, so [`tools/leak_check.py`](tools/leak_check.py) rejects access keys, private keys, secrets assigned in text, credentials in URLs, personal home paths, and secret or database file types. It reports the file and line and never prints the value. Run `git config core.hooksPath tools/githooks` once per clone to run it before every commit. CI runs it on all tracked files.
 
 ## Use
 
@@ -155,4 +158,6 @@ See the [source notes](plugins/engineering-workflow/skills/engineering-workflow/
 - [Workflow, cross-review, and report diagrams](docs/workflow-flow.md)
 - [Multi-host implementation report](docs/implementation-report.md)
 - [Hook scope and the optional skill index hook](plugins/engineering-workflow/skills/engineering-workflow/references/hook-recommendations.md)
+- [Progress board](plugins/engineering-workflow/skills/engineering-workflow/references/board.md)
+- [Registry design: files as the source, a graph rebuilt from them, fixed query commands](docs/registry-design.md)
 - [Plugin index](plugins/engineering-workflow/INDEX.md) · [Changelog](plugins/engineering-workflow/CHANGELOG.md)
