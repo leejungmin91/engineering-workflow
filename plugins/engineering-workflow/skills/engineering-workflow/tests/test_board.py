@@ -222,6 +222,66 @@ class BoardTests(Case):
         with self.assertRaises(ValueError):
             board.load(self.path)
 
+    def test_pictures_come_from_folders_and_the_documents_a_decision_points_to(self):
+        gallery = self.root / "docs" / "gallery" / "31_ground"
+        gallery.mkdir(parents=True)
+        for name in ("a.jpg", "b.png", "notes.txt"):
+            (gallery / name).write_bytes(name.encode())
+        page = self.root / "docs" / "review" / "index.html"
+        page.parent.mkdir(parents=True)
+        (page.parent / "c.png").write_bytes(b"c")
+        page.write_text('<img src="c.png"><img src="../gallery/31_ground/a.jpg"><img src="https://x.org/y.png">'
+                        '<img src="../../../outside.png"><a href="c.png">big</a>', encoding="utf-8")
+        (self.root.parent / "outside.png").write_bytes(b"secret")
+        notes = self.root / "docs" / "plan.md"
+        notes.write_text("![sketch](review/c.png) and ![gone](missing.png)", encoding="utf-8")
+        many = self.root / "docs" / "many"
+        many.mkdir()
+        for number in range(12):
+            (many / f"{number:02d}.png").write_bytes(bytes([number]))
+        self.save([task("a")], decisions=[
+            {"ask": "Ground", "look": "docs/gallery/31_ground (now above, sample below)"},
+            {"ask": "Page", "look": "docs/review/index.html"},
+            {"ask": "Notes", "look": "docs/plan.md (section 2)"},
+            {"ask": "Many", "images": ["docs/many"]}])
+        content = self.page()
+        cards = content.split('class="decision"')[1:]
+        self.assertEqual([card.count('class="thumb"') for card in cards], [2, 2, 1, 8])
+        self.assertIn('data-name="docs/gallery/31_ground/a.jpg"', cards[0])
+        self.assertIn('data-name="docs/review/c.png"', cards[1])
+        self.assertNotIn("outside", content)
+        self.assertNotIn("x.org", content)
+
+    def test_document_forms_fifos_links_and_heavy_input(self):
+        docs = self.root / "docs"
+        docs.mkdir(parents=True)
+        for name in ("t.png", "my sketch.png", "u.png", "d.png"):
+            (docs / name).write_bytes(name.encode())
+        (docs / "forms.md").write_text('![a](t.png "Title") ![b](<my sketch.png>) <img src=u.png alt=x> '
+                                       '<a href="d.png?download=1">full</a>', encoding="utf-8")
+        outside = self.root.parent / "outer.md"
+        outside.write_text('![x](t.png)', encoding="utf-8")
+        (docs / "linked.md").symlink_to(outside)
+        os.mkfifo(docs / "stream.md")
+        (docs / "heavy.md").write_text("![" * 300_000, encoding="utf-8")
+        self.save([task("a")], decisions=[{"ask": "Forms", "look": "docs/forms.md"},
+                                          {"ask": "Odd", "images": ["docs/linked.md", "docs/stream.md", "docs/heavy.md"]}])
+        started = time.monotonic()
+        content = self.page()
+        self.assertLess(time.monotonic() - started, 5)
+        cards = content.split('class="decision"')[1:]
+        self.assertEqual([card.count('class="thumb"') for card in cards], [4, 0])
+        self.assertEqual(board.read_inside(docs / "linked.md", self.root.resolve()), "")
+
+    def test_a_large_folder_keeps_only_the_first_pictures(self):
+        folder = self.root / "big"
+        folder.mkdir(parents=True)
+        for number in range(300):
+            (folder / f"{number:04d}.png").write_bytes(b"x")
+        self.assertEqual([path.name for path in board.first_pictures(folder)], [f"{n:04d}.png" for n in range(8)])
+        with mock.patch.object(board, "FOLDER_ENTRIES", 0):
+            self.assertEqual(board.first_pictures(folder), [])
+
     def test_a_picture_swapped_for_a_link_after_the_check_is_not_copied(self):
         inside = self.root / "a.png"
         self.root.mkdir(parents=True, exist_ok=True)

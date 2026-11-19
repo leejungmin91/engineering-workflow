@@ -1,5 +1,6 @@
 import argparse
 import hashlib
+import heapq
 import html
 import json
 import os
@@ -9,6 +10,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import urllib.parse
 from datetime import datetime
 from pathlib import Path
 
@@ -44,9 +46,14 @@ LABELS = {
     },
 }
 BAR_ORDER = ("done", "doing", "parked", "blocked", "todo")
-PICTURE = re.compile(r"`([^`\n]+\.(?:png|jpe?g|gif|webp|svg))`|([^\s`'\"()<>,;]+\.(?:png|jpe?g|gif|webp|svg))(?![\w.])", re.I)
 PICTURE_BYTES = 20 * 1024 * 1024
 PICTURES = 8
+PICTURE_KINDS = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg")
+DOCUMENT_KINDS = (".html", ".htm", ".md")
+PATH_WORD = re.compile(r"`([^`\n]+)`|([^\s`'\"()<>,;]+)")
+EMBED_START = re.compile(r"\]\(|\b(?:src|href)\s*=\s*", re.I)
+DOCUMENT_BYTES = 2 * 1024 * 1024
+FOLDER_ENTRIES = 5000
 RECORDS = 5
 STALE_HOURS = 24
 STYLE = """
@@ -214,17 +221,97 @@ def images(value):
     return list(value)
 
 
+def inside(base, given, near=None):
+    try:
+        path = Path(given)
+        path = path if path.is_absolute() else (near or base) / path
+        path = path.resolve()
+        path.relative_to(base)
+        return path
+    except (OSError, ValueError, RuntimeError):
+        return None
+
+
+def candidates(item, base):
+    words = list(item.get("images", []))
+    words += [quoted or plain for quoted, plain in PATH_WORD.findall(item.get("look", ""))]
+    for word in words:
+        path = inside(base, word.rstrip(".:"))
+        if path is None or not path.exists():
+            continue
+        if path.is_dir():
+            yield from first_pictures(path)
+        elif path.suffix.lower() in PICTURE_KINDS:
+            yield path
+        elif path.suffix.lower() in DOCUMENT_KINDS:
+            text = read_inside(path, base)
+            for link in embedded(text):
+                found = inside(base, link, path.parent)
+                if found is not None and found.suffix.lower() in PICTURE_KINDS:
+                    yield found
+
+
+def first_pictures(folder):
+    names = []
+    try:
+        with os.scandir(folder) as entries:
+            for count, entry in enumerate(entries):
+                if count >= FOLDER_ENTRIES:
+                    break
+                if os.path.splitext(entry.name)[1].lower() in PICTURE_KINDS:
+                    names.append(entry.name)
+                    if len(names) > PICTURES * 4:
+                        names = heapq.nsmallest(PICTURES, names)
+    except OSError:
+        return []
+    return [Path(folder) / name for name in heapq.nsmallest(PICTURES, names)]
+
+
+def read_inside(path, base):
+    try:
+        handle = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0))
+    except OSError:
+        return ""
+    try:
+        opened = os.fstat(handle)
+        now = Path(os.path.realpath(path))
+        now.relative_to(base)
+        if not stat.S_ISREG(opened.st_mode) or opened.st_size > DOCUMENT_BYTES or \
+                (opened.st_dev, opened.st_ino) != (now.stat().st_dev, now.stat().st_ino):
+            return ""
+        with os.fdopen(os.dup(handle), "rb") as source:
+            return source.read(DOCUMENT_BYTES).decode("utf-8", "replace")
+    except (OSError, ValueError):
+        return ""
+    finally:
+        os.close(handle)
+
+
+def embedded(text):
+    for start in EMBED_START.finditer(text):
+        rest = text[start.end():start.end() + 600].lstrip()
+        if not rest:
+            continue
+        if rest[0] in "\"'":
+            end = rest.find(rest[0], 1)
+            value = rest[1:end] if end > 0 else ""
+        elif rest[0] == "<":
+            end = rest.find(">")
+            value = rest[1:end] if end > 0 else ""
+        else:
+            value = re.split(r"[\s)>]", rest, maxsplit=1)[0]
+        link = urllib.parse.unquote(value.split("#")[0].split("?")[0]).strip()
+        if link and "://" not in link and not link.startswith(("data:", "//")):
+            yield link
+
+
 def pictures(item, root, folder):
     base = Path(root).resolve()
     found, seen = [], set()
-    named = [quoted or plain for quoted, plain in PICTURE.findall(item.get("look", ""))]
-    for given in item.get("images", []) + named:
+    for path in candidates(item, base):
         try:
-            path = Path(given) if Path(given).is_absolute() else base / given
-            path = path.resolve()
-            path.relative_to(base)
             info = path.stat()
-        except (OSError, ValueError, RuntimeError):
+        except OSError:
             continue
         if path in seen or not path.is_file() or info.st_size > PICTURE_BYTES or len(found) >= PICTURES:
             continue
@@ -237,6 +324,8 @@ def pictures(item, root, folder):
         except OSError:
             continue
         found.append({"src": f"assets/{target.name}", "name": str(path.relative_to(base))})
+        if len(found) >= PICTURES:
+            break
     return found
 
 
