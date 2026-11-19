@@ -24,7 +24,9 @@
 | 기록에서 커밋 제목 | 기록의 제목 | `auto_commit_push` 훅 | Git |
 | 공통 규칙과 어긋남 | `templates/app/` | `app_template.py` | 없음 |
 | 한국어 문구 | `.harness/copy-style.json`, `.harness/copy-corrections.md` | `copy_check.py` | 없음 |
-| 등록부(검색과 그래프 질문) | 위의 파일 전부 | `registry_scan.py`, `registry.py` | Neo4j, 선택 |
+| 작업마다 새 세션 | 보드, `WORKING.md` | `run_queue.py` | 에이전트 CLI(`claude -p`) |
+| 등록부(검색과 그래프 질문) | 위의 파일 전부, `WORKING.md`, `CREDITS.md`, Git 기록 | `registry_scan.py`, `registry.py` | Neo4j, 선택 |
+| 스킬 사용 횟수 | 이 기기의 세션 로그(Claude, Codex) | `registry_usage.py` | 등록부 |
 | 프롬프트 힌트 | 등록부 | `registry_hook.py` | 등록부 |
 | 검색용 한국어 명사 | - | `registry_kiwi_server.py` | `kiwipiepy`, 선택 |
 | 힌트의 판단 단계 | - | `registry_judge_jev.py` | 외부 모델, 선택, 데이터가 나감 |
@@ -32,11 +34,13 @@
 표의 위에서부터 시작하세요. 각 줄은 혼자서도 쓸모가 있고, 아래 줄은 위 줄의 파일을 바탕으로 합니다.
 
 - **작업 규칙**: 수정 전에 완료 기준을 정하고, 변경에 필요한 검사를 돌리고, 결함을 되돌려 넣어 검사를 증명하고, 다른 도구가 변경을 검토하게 하고, 모델·검사·남은 일을 보고합니다. 사용자만 정할 수 있는 결정은 기본값과 함께 미뤄 두고 작업을 이어 갑니다.
-- **진행 보드**: 앱마다 JSON 파일 하나에 작업, 선행 작업, 결정 대기를 적습니다. 훅이 로컬 HTML로 그려 세션마다 한 번 띄우고 파일이 바뀌면 다시 그립니다. ([board.md](../plugins/engineering-workflow/skills/engineering-workflow/references/board.md))
+- **진행 보드**: 앱마다 JSON 파일 하나에 작업, 선행 작업, 결정 대기를 적습니다. 훅이 로컬 HTML로 그려 세션마다 한 번 띄우고 파일이 바뀌면 다시 그립니다. 화면은 사용자가 할 일(그림이 달린 결정, 막힌 작업)을 먼저 보이고, 지금 하는 일과 다음 차례, 상태별 작업을 보입니다. 전체 보드는 사용자가 필요한 보드를 위에 둡니다. ([board.md](../plugins/engineering-workflow/skills/engineering-workflow/references/board.md))
 - **작업 기록**: 끝난 작업마다 열다섯 줄 안팎의 파일 하나. 무엇을, 왜 했고, 무엇을 버렸는지. 제목이 커밋 제목이 됩니다. 세션은 늘어나는 기록 전체가 아니라 검색으로 나온 기록 하나만 읽으므로 비용이 늘지 않습니다. ([records.md](../plugins/engineering-workflow/skills/engineering-workflow/references/records.md))
+- **작업마다 새 세션**: 긴 세션은 컨텍스트가 차고, 압축되면 내용이 빠집니다. 보드·기록·`WORKING.md`에 세션이 알아야 할 것이 다 있으므로, `run_queue.py`가 준비된 작업마다 새 세션을 띄우고 결과(끝남 표시, 원격의 새 커밋, 기록, 남은 변경 없음)를 직접 확인한 뒤에만 다음으로 갑니다. 권한을 넓히지 않고 첫 문제에서 멈춥니다. ([run-queue.md](../plugins/engineering-workflow/skills/engineering-workflow/references/run-queue.md))
+- **모델 고르기**: 규칙은 모든 세션에서 같습니다. 그 역할을 할 수 있는 가장 가벼운 모델, 통합과 디버깅은 표준, 설계·새 시스템·저장 데이터·고위험 검토는 가장 강한 모델. 세션은 자기 모델을 바꿀 수 없으므로 일을 나눠 줄 때 고릅니다. 위임할 때 모델과 추론 수준을 적고, 보드 작업에 `model`과 `effort`를 적으면 `run_queue.py`가 그대로 넘기고, 스킬은 머리말에 원하는 모델·추론 수준·대체 모델을 적을 수 있습니다. 기록마다 실제로 돈 모델과 검토한 모델을 남기므로 등록부에서 실제 사용을 볼 수 있습니다.
 - **공통 규칙과 어긋남**: 새 앱은 틀 하나에서 시작합니다. 틀의 규칙을 바꾸면 `drift`가 옛 글을 가진 앱을 나열합니다. ([app-template.md](../plugins/engineering-workflow/skills/engineering-workflow/references/app-template.md))
 - **한국어 문구**: 앱마다 말투와 용어를 문체 기준에 두고, 사용자가 고친 표현을 교정 기록에 남깁니다. 옛 표현이 돌아오거나 말투가 섞이면 스크립트가 실패합니다. 사람처럼 읽히는지는 여전히 직접 읽어 봅니다. ([korean-copy](../plugins/engineering-workflow/skills/korean-copy/SKILL.md))
-- **등록부**: 앱이 많아져 "이 스킬을 쓰는 앱", "이 수정이 더 필요한 곳", "이 에셋의 출처" 같은 질문에 검색을 여러 번 해야 할 때, 파일을 그래프로 읽어 정해진 명령으로 묻습니다. 훑을 때마다 파일을 모두 읽고, 내용이 바뀐 파일만 그래프에 다시 씁니다. 서버가 꺼져도 같은 파일을 텍스트로 검색할 수 있습니다. ([registry.md](../plugins/engineering-workflow/skills/engineering-workflow/references/registry.md), [설계](registry-design.md))
+- **등록부**: 앱이 많아져 "이 스킬을 쓰는 앱", "이 수정이 더 필요한 곳", "이 에셋의 출처" 같은 질문에 검색을 여러 번 해야 할 때, 파일을 그래프로 읽어 정해진 명령으로 묻습니다. 하네스 파일 말고도 앱마다 `WORKING.md`(세션과 맡은 일), `CREDITS.md`(에셋과 라이선스), Git 기록, 에이전트 세션이 실제로 쓴 스킬의 횟수를 읽습니다. 동기화는 한 번에 하나만 쓰고, 끊긴 동기화는 다음 동기화가 마저 씁니다. 훑을 때마다 파일을 모두 읽고, 내용이 바뀐 파일만 그래프에 다시 씁니다. 서버가 꺼져도 같은 파일을 텍스트로 검색할 수 있습니다. ([registry.md](../plugins/engineering-workflow/skills/engineering-workflow/references/registry.md), [설계](registry-design.md))
 - **프롬프트 힌트**: 프롬프트에 맞는 스킬·규칙·기록을 3개까지 붙입니다. 판단 단계는 바꿔 끼울 수 있고 기본은 이 기기 안에서 돕니다. 외부 판단 모델은 프롬프트와 후보 설명을 밖으로 보내므로 직접 켜야만 동작합니다.
 
 ## 해 보기
@@ -56,5 +60,6 @@ python3 examples/harness-demo/run.py
 3. 앱마다 보드를 두고, 작업이 끝나면 기록을 씁니다.
 4. 한국어 앱은 기존 문구를 보고 문체 기준을 한 번 씁니다.
 5. 여러 앱을 검색하기가 느려지면 등록부를 붙입니다. 로컬 Neo4j 서버와 앱 목록이 든 설정 파일이 필요합니다.
+6. 세션이 길어지면 `run_queue.py`로 작업마다 새 세션을 띄웁니다.
 
 제 설정에서 비공개로 두는 것은 제 앱 목록, 데이터베이스 자체, 키(macOS 키체인), 외부 서비스 측정값입니다. 방법을 쓰는 데에는 하나도 필요 없습니다.

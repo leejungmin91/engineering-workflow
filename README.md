@@ -85,7 +85,7 @@ The plugin bundles three hooks for Claude Code and Codex. In Codex, review and t
 | Hook | Event | What it does |
 | --- | --- | --- |
 | `auto_commit_push` | `Stop` | When the assistant finishes a turn, stages remaining changes with `git add -A`, commits with the subject `Update <top-level paths>` (or the title of a work record added in the change), and pushes local commits using the repository's Git configuration. A branch without an upstream is pushed to the same branch on `origin` when that remote exists. |
-| `board` | `SessionStart`, `PostToolUse`, `Stop` | When the project has `.harness/board.json`, renders the progress board (progress, task list, decisions waiting for the user) to a local HTML page outside the repository, opens it once per session, and redraws it when the file changes. Does nothing without a board file. |
+| `board` | `SessionStart`, `PostToolUse`, `Stop` | When the project has `.harness/board.json`, renders the progress board (what needs the user first, what is in progress and next, tasks by state, decisions with their pictures) to a local HTML page outside the repository, opens it once per session, and redraws it when the file changes. Does nothing without a board file. |
 | `registry_hook` | `UserPromptSubmit` | When a registry config exists, searches the registry for the prompt and attaches at most three candidates the current project can reach. Does nothing without a config, never blocks a prompt, and never writes the prompt to disk. |
 
 `auto_commit_push` also pushes hand-written commits when the worktree is clean. Failures appear as a message, and a later turn retries a failed push while the commits are still local. Set `AUTO_COMMIT_TRAILER` to supply a custom `Co-Authored-By` trailer. Use `--dry-run` to preview a commit with a temporary Git index.
@@ -161,6 +161,7 @@ See the [source notes](plugins/engineering-workflow/skills/engineering-workflow/
 - [Multi-host implementation report](docs/implementation-report.md)
 - [Hook scope and the optional skill index hook](plugins/engineering-workflow/skills/engineering-workflow/references/hook-recommendations.md)
 - [Progress board](plugins/engineering-workflow/skills/engineering-workflow/references/board.md)
+- [One task per fresh session](plugins/engineering-workflow/skills/engineering-workflow/references/run-queue.md)
 - [Registry design: files as the source, a graph rebuilt from them, fixed query commands](docs/registry-design.md)
 - [Registry commands and setup](plugins/engineering-workflow/skills/engineering-workflow/references/registry.md)
 - [Plugin index](plugins/engineering-workflow/INDEX.md) · [Changelog](plugins/engineering-workflow/CHANGELOG.md)

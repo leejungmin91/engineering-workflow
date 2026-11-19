@@ -28,7 +28,9 @@ Each piece is a file format plus a small script. Files are always the source of 
 | Commit subjects from records | the record title | `auto_commit_push` hook | Git |
 | Shared rules and drift | `templates/app/` | `app_template.py` | nothing |
 | Korean copy | `.harness/copy-style.json`, `.harness/copy-corrections.md` | `copy_check.py` | nothing |
-| Registry (search and graph questions) | all of the above | `registry_scan.py`, `registry.py` | Neo4j, optional |
+| One task per fresh session | the board, `WORKING.md` | `run_queue.py` | an agent CLI (`claude -p`) |
+| Registry (search and graph questions) | all of the above, `WORKING.md`, `CREDITS.md`, Git history | `registry_scan.py`, `registry.py` | Neo4j, optional |
+| Skill use counts | local session logs (Claude, Codex) | `registry_usage.py` | the registry |
 | Prompt hint | the registry | `registry_hook.py` | the registry |
 | Korean nouns for search | - | `registry_kiwi_server.py` | `kiwipiepy`, optional |
 | Judge for the hint | - | `registry_judge_jev.py` | a hosted model, optional, sends data |
@@ -45,7 +47,9 @@ checks, and open items. Decisions only the user can make are parked with a defau
 
 One JSON file per app lists tasks, their prerequisites, and the decisions waiting for the user. A hook draws it as
 a local HTML page, opens it once per session, and redraws it when the file changes. Sessions edit the JSON, never
-the page. See [board.md](../plugins/engineering-workflow/skills/engineering-workflow/references/board.md).
+the page. The page leads with what needs the user (decisions with their pictures, blocked tasks), then what is in
+progress and what comes next, and groups the rest by state; an overview lists every board, the ones that need the
+user first. See [board.md](../plugins/engineering-workflow/skills/engineering-workflow/references/board.md).
 
 ### Work records
 
@@ -53,6 +57,23 @@ One file of about fifteen lines per finished task: what was done, why, and what 
 commit subject, so `git log` and the records agree. History stays cheap because a session reads only the record a
 search returns, not a growing log. See
 [records.md](../plugins/engineering-workflow/skills/engineering-workflow/references/records.md).
+
+### One task per fresh session
+
+A long session fills its context, and a compacted context loses detail. Because the board, the records, and
+`WORKING.md` hold everything a session needs, `run_queue.py` can start a new agent session for each ready task,
+check its result itself (task done, a new commit on the remote, a record, nothing left over), and only then start
+the next. It adds no permissions and stops at the first problem. See
+[run-queue.md](../plugins/engineering-workflow/skills/engineering-workflow/references/run-queue.md).
+
+### Choosing models
+
+The rule is the same in every session: the lightest model that can do the role, a standard one for integration
+and debugging, the strongest for design, new systems, saved data, and high-risk review. A session cannot change its
+own model, so the choice is made where work is handed out: a delegation names its model and reasoning level, a board
+task may carry `model` and `effort` for `run_queue.py`, and a skill may name its preferred model, effort, and
+fallback in its metadata. Every record states the model that ran and the one that reviewed, so the registry can show
+what was actually used.
 
 ### Shared rules and drift
 
@@ -69,7 +90,10 @@ A script fails when the old wording comes back or the levels mix; a person-like 
 ### Registry
 
 When there are enough apps that "which apps use this skill", "what else needs this fix", and "where did this asset
-come from" take several searches, the files are scanned into a graph and asked with fixed commands. Every file is
+come from" take several searches, the files are scanned into a graph and asked with fixed commands. Besides the
+harness files it reads each app's `WORKING.md` (sessions and what they hold), its `CREDITS.md` files (assets and
+licenses), its Git history, and the counts of which skills agent sessions actually used. Only one sync writes at a
+time, and a sync cut short is finished by the next. Every file is
 read on each scan, and only the files whose content changed are written to the graph again. Plain text search over the same files still works when the server is down. See
 [registry.md](../plugins/engineering-workflow/skills/engineering-workflow/references/registry.md) and the
 [design](registry-design.md).
@@ -98,6 +122,7 @@ runs it that way.
 3. Keep a board in each app and write a record when a task is done.
 4. For Korean apps, write the style sheet once from the existing strings.
 5. When search across apps becomes slow, add the registry: a local Neo4j server and a config listing your apps.
+6. When sessions run long, let `run_queue.py` start one fresh session per task.
 
 What stays private in my setup: the list of my apps, the database itself, keys (in the macOS keychain), and any
 measurement of hosted services. None of it is needed to use the method.
