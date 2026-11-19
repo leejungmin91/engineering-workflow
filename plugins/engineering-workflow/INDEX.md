@@ -12,6 +12,7 @@
 | --- | --- | --- | --- |
 | `engineering-workflow` | 작업 절차 | 완료 기준·작업 순서·검증 루프·교차검토·보고를 한 흐름으로 진행한다. 여러 세션이 한 저장소에서 일할 때의 갈래와 점유 규칙을 포함한다 | 하네스, 검증, 의존성, 교차검토, 보고서, 다중 세션, 점유, harness, multi-session, lanes, verification, dependency graph, review, report |
 | `game-dev` | 게임 개발 | 밸런스·진행, 에셋 예산 감사, 성능 예산, 플레이 보고, 회귀 시험, 범위 점검, 아트 방향, 소리 검토, Unity·Blender MCP 사용 규칙 | 게임, 밸런스, 에셋, 성능, 플레이테스트, 사운드, 유니티, 블렌더, game, balance, asset audit, performance, playtest, sound, Unity, Blender, MCP |
+| `korean-copy` | 한국어 문구 | 사용자가 읽는 한국어 글의 말투·용어·이전 교정을 지키고, 섞인 말투·피할 낱말·틀린 맞춤법·깨진 자리표시자를 스크립트로 검사한다 | 한국어 문구, 말투, 맞춤법, 번역투, 존댓말, 현지화, Korean copy, localization, speech level, style sheet |
 
 ## 훅 (설치하면 바로 동작)
 
@@ -36,6 +37,7 @@
 | `skills/engineering-workflow/scripts/registry_judge_jev.py` | 등록부 훅의 판단 단계를 TypeSafe Jev에 맡기는 연결. `HARNESS_REGISTRY_JUDGE=jev`일 때만 쓰이고, 프롬프트와 후보 설명을 외부로 보낸다 |
 | `skills/engineering-workflow/scripts/registry_text.py` | 등록부의 한국어 처리. 조사·어미 떼기, 한영 낱말표, 색인용 어간. 분석기 서비스가 있으면 그 명사를 쓴다 |
 | `skills/engineering-workflow/scripts/registry_kiwi_server.py` | 선택 사항. Kiwi 형태소 분석기의 명사를 이 기기에서만 내주는 작은 서비스 (`kiwipiepy` 필요) |
+| `skills/korean-copy/scripts/copy_check.py` | 한국어 문구 검사. 앱의 문체 기준(`.harness/copy-style.json`)과 교정 기록(`.harness/copy-corrections.md`)을 읽어 말투·용어·맞춤법·마침표·길이·자리표시자를 검사한다. 네트워크를 쓰지 않는다 (`skills/korean-copy/references/style-sheet.md`) |
 | `skills/engineering-workflow/scripts/check_record.py` | 완료 기록의 검사 결과·작업본·의존성을 검사한다 |
 | `skills/engineering-workflow/scripts/lane_guard.py` | 선택형 `PreToolUse` 훅. 구현 담당 세션만 지키는 경로를 고치게 하고 전부 스테이징을 막는다 (프로젝트에 복사해서 등록, `references/multi-session.md`) |
 | `skills/engineering-workflow/templates/multi-session/WORKING.md` | 세션 역할, 구현 담당, 사용자 결정 대기 목록을 적는 틀 |

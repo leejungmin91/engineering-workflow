@@ -137,7 +137,7 @@ The footer shows the model and reasoning level, context usage and capacity, cumu
 
 ## Source skills
 
-The plugin ships one skill, `engineering-workflow`. Its workflow adapts techniques from these ten source skills.
+The plugin ships three skills: `engineering-workflow`, `game-dev`, and [`korean-copy`](plugins/engineering-workflow/skills/korean-copy/SKILL.md), which keeps Korean product text to one speech level and the app's own terms with a script that fails on the mechanical mistakes. The `engineering-workflow` workflow adapts techniques from these ten source skills.
 
 | Source skill | Technique used here |
 | --- | --- |
