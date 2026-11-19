@@ -101,7 +101,7 @@ def create(template, destination, name):
     written, kept = [], []
     target.mkdir(parents=True, exist_ok=True)
     for source in template_entries(root):
-        relative = source.relative_to(root)
+        relative = source.relative_to(root).as_posix()
         path = target / relative
         if not inside(path, target):
             kept.append(f"{relative} (outside the folder through a link, not written)")
@@ -116,7 +116,7 @@ def create(template, destination, name):
         except FileExistsError:
             kept.append(f"{relative} (already there)")
             continue
-        written.append(str(relative))
+        written.append(relative)
     return written, kept
 
 
