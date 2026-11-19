@@ -160,4 +160,5 @@ status_line = ["model-with-reasoning", "context-used", "context-remaining", "con
 - [훅 범위와 선택형 스킬 색인 훅](plugins/engineering-workflow/skills/engineering-workflow/references/hook-recommendations.md)
 - [진행 보드](plugins/engineering-workflow/skills/engineering-workflow/references/board.md)
 - [등록부 설계: 파일이 원본, 파일에서 다시 만드는 그래프, 정해진 조회 명령](docs/registry-design.md)
+- [등록부 명령과 설치](plugins/engineering-workflow/skills/engineering-workflow/references/registry.md)
 - [플러그인 색인](plugins/engineering-workflow/INDEX.md) · [변경 이력](plugins/engineering-workflow/CHANGELOG.md)

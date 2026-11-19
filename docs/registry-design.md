@@ -1,6 +1,6 @@
 # Registry design
 
-Status: the [progress board](../plugins/engineering-workflow/skills/engineering-workflow/references/board.md) and the [scanner](#scanner) are shipped. The query commands, the language layer, and the prompt hook are design and not shipped yet. Session and Machine nodes are not read yet.
+Status: the [progress board](../plugins/engineering-workflow/skills/engineering-workflow/references/board.md) the [scanner](#scanner), a Neo4j store, and the [query commands](../plugins/engineering-workflow/skills/engineering-workflow/references/registry.md) are shipped. The language layer and the prompt hook are design and not shipped yet. Session and Machine nodes are not read yet.
 
 The registry answers questions that span many projects: which skill fits this prompt, what did we do about this six months ago, what breaks if this skill changes, where did this asset come from. An agent that works these out by itself searches again and again, and every search result stays in its context. The registry follows the links once and returns a few lines.
 
@@ -43,7 +43,7 @@ The registry answers questions that span many projects: which skill fits this pr
 | App or Checkout | INSTALLED | Plugin | `installed_plugins.json`, with the installed `version` and `scope` |
 | Plugin | PROVIDES | Tool | Hook scripts registered in the plugin's `hooks.json`, with their events |
 | Plugin | PROVIDES | Skill | The plugin's skill folder |
-| App | HAS | Skill | The app's own skill folder |
+| App | HAS | Skill | The app's own skill folder, or the user skill folder for every app (`scope: user`) |
 | Skill | REQUIRES | Tool or Skill | Skill frontmatter `requires` |
 | Skill | SUPERSEDES | Skill | Skill frontmatter `supersedes` |
 | Skill | PREFERS | Model | Skill frontmatter `model`, `effort`, `fallback` |
@@ -144,7 +144,7 @@ python3 scripts/registry_scan.py /absolute/path/to/registry.json --out /absolute
 
 Only `apps` is required. The output has one entry per file with its `kind`, a `hash`, and the `nodes` and `links` it states. A file that cannot be read gets an `error` and no facts, and the rest is still read.
 
-A store adapter keeps the hash of every file it loaded. On the next run it replaces the facts of files whose hash changed, drops the facts of files that are gone, and leaves the rest alone. The hash covers the file content and which apps the file applies to, so adding an app re-reads the user-level files. A node that several files state stays until the last of them is gone. This repository does not ship an adapter: the author's runs against a local graph server and is kept private with its data.
+A store adapter keeps the hash of every file it loaded. On the next run it replaces the facts of files whose hash changed, drops the facts of files that are gone, and leaves the rest alone. The hash covers the file content and which apps the file applies to, so adding an app re-reads the user-level files. A node that several files state stays until the last of them is gone. `scripts/registry_neo4j.py` is the adapter for a local Neo4j server. It holds no address beyond `127.0.0.1` and no password: those come from the environment or the keychain. The data stays on the machine that runs the server.
 
 ## Commands
 
@@ -183,7 +183,7 @@ These come from six days of real prompts across three projects. They are the acc
 
 1. Board (shipped).
 2. Scanner: files to nodes and links, changed files only (shipped).
-3. Commands, checked against the question shapes with real answers.
+3. Commands, checked against the question shapes with real answers (shipped; answers checked for the questions whose files exist).
 4. Language layer: morpheme tokens and the glossary for non-English prompts.
 5. Prompt hook: search, a judge step that can be swapped, at most three candidates.
 6. Work records and commit subjects taken from them.

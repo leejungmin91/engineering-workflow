@@ -114,7 +114,8 @@ def skill_facts(content, origin):
     description = fields.get("description") if isinstance(fields.get("description"), str) else ""
     me = f"skill:{name.strip()}"
     nodes = [node("skill", name.strip(), text=description, model=extra.get("model"), effort=extra.get("effort"))]
-    links = [link(origin["owner"], origin["verb"], me)] if origin.get("owner") else []
+    owners = origin.get("owners") or ([origin["owner"]] if origin.get("owner") else [])
+    links = [link(owner, origin["verb"], me, scope=origin.get("scope")) for owner in owners]
     for item in listed(extra.get("requires")):
         links.append(link(me, "REQUIRES", reference(item, "skill")))
     for item in listed(extra.get("supersedes")):
@@ -328,7 +329,7 @@ def discover(config):
         add(user / "plugins" / "installed_plugins.json", "installed", apps=every,
             paths={str(root): f"app:{name}" for name, root in apps})
         for path in skill_files(user / "skills"):
-            add(path, "skill")
+            add(path, "skill", owners=every, verb="HAS", scope="user")
     for folder in config.get("plugins", []):
         folder = Path(folder)
         manifest = folder / ".claude-plugin" / "plugin.json"

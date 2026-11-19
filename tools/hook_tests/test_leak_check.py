@@ -41,6 +41,7 @@ CLEAN = [
     "api_key = YOUR_ANTHROPIC_API_KEY_HERE_123",
     "token: integrations/discord/state2/cache",
     "password: ${NEO4J_PASSWORD}",
+    "token = base64.b64encode(raw).decode()",
 ]
 
 

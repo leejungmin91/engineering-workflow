@@ -33,6 +33,11 @@ Use project instructions, established tools, and the permissions already granted
 - Update the board file when a task starts, finishes, or stops, and when a decision is parked or settled. Edit the JSON only. The plugin hooks redraw the page and open it once per session.
 - Use the same task IDs in the board and the completion record.
 
+## Registry
+
+- When the project has a registry configured, ask it before searching widely across projects: `dupes` before creating a skill, `impact` before changing a skill, tool, plugin, or rule, `spread` after a fix other apps may need, `find` to recall earlier work. See the [registry guide](references/registry.md).
+- The registry is rebuilt from files. Change the file, never the graph. If the registry is unavailable, search the files and say so.
+
 ## Harness and task graph
 
 - Before editing, define the expected result, change scope, and required checks. Find commands in the current project's instructions, CI, and scripts. Reuse existing code and tools, preserve unrelated changes, and keep the diff focused.

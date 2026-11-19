@@ -46,6 +46,8 @@ def assigned_secret(line):
             continue
         if "/" in value and re.fullmatch(r"[a-z0-9_./-]+", value):
             continue
+        if re.fullmatch(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+", value):
+            continue
         return True
     return False
 

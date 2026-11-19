@@ -160,4 +160,5 @@ See the [source notes](plugins/engineering-workflow/skills/engineering-workflow/
 - [Hook scope and the optional skill index hook](plugins/engineering-workflow/skills/engineering-workflow/references/hook-recommendations.md)
 - [Progress board](plugins/engineering-workflow/skills/engineering-workflow/references/board.md)
 - [Registry design: files as the source, a graph rebuilt from them, fixed query commands](docs/registry-design.md)
+- [Registry commands and setup](plugins/engineering-workflow/skills/engineering-workflow/references/registry.md)
 - [Plugin index](plugins/engineering-workflow/INDEX.md) · [Changelog](plugins/engineering-workflow/CHANGELOG.md)
