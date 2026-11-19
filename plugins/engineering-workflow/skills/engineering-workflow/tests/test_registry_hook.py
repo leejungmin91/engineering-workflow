@@ -143,6 +143,24 @@ class OfflineTests(unittest.TestCase):
                 text = self.answer("which skill fits", scored=scored)["hookSpecificOutput"]["additionalContext"]
                 self.assertIn("- skill:a", text)
 
+    def test_named_candidates_stay_and_the_built_in_judge_name_runs_the_sibling_script(self):
+        named, scored = [row("skill:n", None)], [row("skill:a", 9.0), row("skill:b", 3.0)]
+        with mock.patch.object(hook, "run_judge", return_value='["skill:b"]') as run:
+            chosen = hook.outside_judge("jev", "prompt", named, scored, 1)
+            self.assertEqual([item["id"] for item in chosen], ["skill:n", "skill:b"])
+            self.assertEqual([item["id"] for item in json.loads(run.call_args.args[1])["candidates"]], ["skill:a", "skill:b"])
+            self.assertEqual([item["id"] for item in hook.outside_judge("jev", "prompt", named, [], 1)], ["skill:n"])
+            self.assertEqual(run.call_count, 1)
+        with mock.patch.object(hook.subprocess, "Popen") as popen:
+            popen.return_value.communicate.return_value = (b"[]", b"")
+            popen.return_value.returncode = 0
+            hook.run_judge(" JEV ", "{}", 1)
+            command = popen.call_args.args[0]
+            self.assertEqual((command[0], Path(command[1]).name), (sys.executable, "registry_judge_jev.py"))
+            self.assertFalse(popen.call_args.kwargs["shell"])
+            hook.run_judge("my-judge --flag", "{}", 1)
+            self.assertTrue(popen.call_args.kwargs["shell"])
+
     def test_log_holds_ids_and_numbers_but_never_the_prompt(self):
         folder = Path(self.tmp.name) / "log"
         with mock.patch.dict(os.environ, {"HARNESS_REGISTRY_LOG": str(folder)}):

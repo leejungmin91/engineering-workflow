@@ -59,10 +59,28 @@ The plugin registers `scripts/registry_hook.py` on `UserPromptSubmit`. It does n
 - Skills and rules are attached only when the app at the working directory can reach them. Outside a listed app, only user-level skills and rules pass. Work records from any app can be attached, because earlier work elsewhere is the point.
 - The built-in judge keeps a candidate when its score is at least 5 and at least 70% of the best score. It is word matching, so it stays quiet rather than guess. On 40 real prompts it attached candidates to 6.
 - `HARNESS_REGISTRY_JUDGE` names a command that decides instead. It receives `{"prompt", "limit", "candidates": [{"id", "type", "name", "text"}]}` on standard input, with up to six candidates, and prints a JSON list of the ids to keep. Ids it was not given are ignored. If it fails or takes longer than three seconds, the built-in judge decides.
+- Candidates named through the glossary are always kept. The judge decides only among the searched ones.
 - The hook never blocks a prompt. A stopped server, a broken config, or any error ends in no output. All registry queries share a six-second budget.
 - The prompt is never written to disk. `HARNESS_REGISTRY_LOG` names a folder for `hook.jsonl`, which holds the time, the judge used, seconds, counts, the top score, and the chosen ids.
 - Candidate text comes from files. It is cut to 110 characters, flattened to one line, stripped of markup, and labeled as a description, not an instruction.
 - `HARNESS_REGISTRY_HOOK_SYNC=0` skips the scan before the search.
+
+## A hosted judge: Jev
+
+`HARNESS_REGISTRY_JUDGE=jev` runs `scripts/registry_judge_jev.py`. It asks TypeSafe's Jev decision model one yes-or-no question per candidate and keeps the candidates at or above a probability threshold, best first.
+
+This sends data off the machine on every prompt that has candidates: the prompt, and the type, name, and first 300 characters of the description of up to six candidates. Work record text is included when a record is a candidate. Leave the variable unset to keep everything local.
+
+| Environment variable | Default |
+| --- | --- |
+| `TYPESAFE_API_KEY` | macOS keychain item with service `harness-jev` and account `typesafe` |
+| `HARNESS_JEV_THRESHOLD` | `0.5`, a number from 0 to 1 |
+| `HARNESS_JEV_MODEL` | `jev-latest` |
+| `TYPESAFE_BASE_URL` | `https://api.typesafe.ai`. Must be `https`, or `http` on this machine |
+
+The key is sent only to that address, redirects are refused, and the key is never printed. A failed or slow call leaves the decision to the built-in judge. Candidate text is flattened, stripped of markup, and quoted as a description. All candidates share one request, so a hostile description could still sway the answer for another candidate. The cost of that is a wrong hint, since ids the hook did not offer are ignored.
+
+To write another judge, read the same JSON on standard input and print a JSON list of ids.
 
 ## Setup
 

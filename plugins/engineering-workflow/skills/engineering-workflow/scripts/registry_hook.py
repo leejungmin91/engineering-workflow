@@ -28,6 +28,7 @@ BUDGET = 6.0
 JUDGE_SECONDS = 3.0
 SAFE_ID = re.compile(r"[a-z]+:[\w.:/@+-]{1,120}")
 MARKUP = re.compile(r"[`<>#*\[\]{}|]")
+BUILT_IN = {"jev": "registry_judge_jev.py"}
 
 
 def candidates(store, prompt, folder=None):
@@ -57,7 +58,10 @@ def local_judge(named, scored):
 
 def run_judge(command, payload, seconds):
     options = {"start_new_session": True} if os.name == "posix" else {}
-    process = subprocess.Popen(command, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+    script = BUILT_IN.get(command.strip().lower())
+    if script:
+        command = [sys.executable, str(Path(__file__).resolve().parent / script)]
+    process = subprocess.Popen(command, shell=not script, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                stderr=subprocess.DEVNULL, **options)
     try:
         output, _ = process.communicate(payload.encode("utf-8"), timeout=seconds)
@@ -84,14 +88,17 @@ def run_judge(command, payload, seconds):
 
 
 def outside_judge(command, prompt, named, scored, seconds):
-    offered = (named + scored)[:OFFER]
+    offered = scored[:OFFER]
+    if not offered:
+        return named[:LIMIT]
     payload = json.dumps({"prompt": prompt[:MAX_PROMPT], "limit": LIMIT, "candidates": [
         {"id": row["id"], "type": row["type"], "name": row["name"], "text": row.get("text") or ""} for row in offered]})
     chosen = json.loads(run_judge(command, payload, seconds))
     if not isinstance(chosen, list):
         raise ValueError("judge gave no list")
     by_id = {row["id"]: row for row in offered}
-    return [by_id[key] for key in dict.fromkeys(item for item in chosen if isinstance(item, str)) if key in by_id][:LIMIT]
+    picked = [by_id[key] for key in dict.fromkeys(item for item in chosen if isinstance(item, str)) if key in by_id]
+    return (named + picked)[:LIMIT]
 
 
 def plain(value, limit):
