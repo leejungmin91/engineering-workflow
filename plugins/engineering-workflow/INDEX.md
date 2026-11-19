@@ -28,7 +28,7 @@
 
 | 스크립트 | 용도 |
 | --- | --- |
-| `scripts/hooks/auto_commit_push.sh` | `Stop` 훅 본체. POSIX `sh`로 돌며 `--dry-run`을 지원한다 |
+| `scripts/hooks/auto_commit_push.sh` | `Stop` 훅 본체. POSIX `sh`로 돌며 `--dry-run`을 지원한다. 변경에 새 작업 기록이 있으면 그 제목을 커밋 제목으로 쓴다 |
 | `skills/engineering-workflow/scripts/board.py` | 진행 보드. `.harness/board.json`을 읽어 진행률·작업 목록·결정 대기를 로컬 HTML 한 장으로 그린다. 훅 본체를 겸한다 (`references/board.md`) |
 | `skills/engineering-workflow/scripts/registry_scan.py` | 등록부 훑기. 스킬·플러그인·훅·설정·보드·작업 기록·에셋 기록·규칙 제목·용어 사전을 읽어 파일별 점과 선, 해시로 출력한다. DB 없이 돈다 (`docs/registry-design.md`) |
 | `skills/engineering-workflow/scripts/registry.py` | 등록부 조회 명령: `find`·`dupes`·`neighbors`·`impact`·`spread`·`lineage`·`needs`·`latest`·`unused`·`status`·`sync`. 조회 전에 바뀐 파일만 다시 색인한다. 선택 사항이며 로컬 Neo4j가 필요하다 (`references/registry.md`) |
@@ -38,6 +38,7 @@
 | `skills/engineering-workflow/scripts/registry_text.py` | 등록부의 한국어 처리. 조사·어미 떼기, 한영 낱말표, 색인용 어간. 분석기 서비스가 있으면 그 명사를 쓴다 |
 | `skills/engineering-workflow/scripts/registry_kiwi_server.py` | 선택 사항. Kiwi 형태소 분석기의 명사를 이 기기에서만 내주는 작은 서비스 (`kiwipiepy` 필요) |
 | `skills/korean-copy/scripts/copy_check.py` | 한국어 문구 검사. 앱의 문체 기준(`.harness/copy-style.json`)과 교정 기록(`.harness/copy-corrections.md`)을 읽어 말투·용어·맞춤법·마침표·길이·자리표시자를 검사한다. 네트워크를 쓰지 않는다 (`skills/korean-copy/references/style-sheet.md`) |
+| `skills/engineering-workflow/scripts/record.py` | 작업 기록 쓰기와 검사. 끝난 작업마다 `.harness/records/`에 작은 파일 하나를 만들고, 형식을 검사한다 (`references/records.md`) |
 | `skills/engineering-workflow/scripts/check_record.py` | 완료 기록의 검사 결과·작업본·의존성을 검사한다 |
 | `skills/engineering-workflow/scripts/lane_guard.py` | 선택형 `PreToolUse` 훅. 구현 담당 세션만 지키는 경로를 고치게 하고 전부 스테이징을 막는다 (프로젝트에 복사해서 등록, `references/multi-session.md`) |
 | `skills/engineering-workflow/templates/multi-session/WORKING.md` | 세션 역할, 구현 담당, 사용자 결정 대기 목록을 적는 틀 |

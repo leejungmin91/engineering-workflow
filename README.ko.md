@@ -84,7 +84,7 @@ claude plugin install engineering-workflow@engineering-workflow
 
 | 훅 | 이벤트 | 동작 |
 | --- | --- | --- |
-| `auto_commit_push` | `Stop` | 어시스턴트가 턴을 마치면 `git add -A`로 남은 변경을 스테이징하고 `Update <최상위 경로>` 제목으로 커밋합니다. 로컬 커밋은 저장소의 Git 설정에 따라 푸시합니다. 업스트림이 없고 `origin`이 있으면 같은 이름의 원격 브랜치로 푸시합니다. |
+| `auto_commit_push` | `Stop` | 어시스턴트가 턴을 마치면 `git add -A`로 남은 변경을 스테이징하고 `Update <최상위 경로>` 제목으로 커밋합니다. 변경에 새 작업 기록이 있으면 그 기록의 제목을 씁니다. 로컬 커밋은 저장소의 Git 설정에 따라 푸시합니다. 업스트림이 없고 `origin`이 있으면 같은 이름의 원격 브랜치로 푸시합니다. |
 | `board` | `SessionStart`·`PostToolUse`·`Stop` | 프로젝트에 `.harness/board.json`이 있으면 진행 보드(진행률, 작업 목록, 결정 대기)를 저장소 밖의 로컬 HTML로 그려 세션마다 한 번 띄우고, 파일이 바뀌면 다시 그립니다. 보드 파일이 없으면 아무것도 하지 않습니다. |
 | `registry_hook` | `UserPromptSubmit` | 등록부 설정이 있으면 프롬프트로 등록부를 찾아, 지금 프로젝트에서 쓸 수 있는 후보를 3개 이내로 붙입니다. 설정이 없으면 아무것도 하지 않고, 프롬프트를 막지 않으며, 프롬프트를 디스크에 쓰지 않습니다. |
 

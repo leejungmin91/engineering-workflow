@@ -11,7 +11,7 @@ The plugin registers three hooks on installation (`hooks/hooks.json`). One commi
 How `auto_commit_push` behaves:
 
 - It runs `git add -A`, so `.gitignore` excludes ignored untracked files. A clean worktree can still have local commits to push.
-- The commit subject is `Update <up to three top-level paths>` with `(+N more)` when there are more; dotfiles sort last. The body lists the changed files (`git diff --cached --name-status`) and ends with a `Co-Authored-By` trailer. `AUTO_COMMIT_TRAILER` replaces the trailer.
+- The commit subject is `Update <up to three top-level paths>` with `(+N more)` when there are more; dotfiles sort last. When the change adds a [work record](records.md) (`.harness/records/*.md`, at the top or under any folder), the record's `title` is the subject instead. The body lists the changed files (`git diff --cached --name-status`) and ends with a `Co-Authored-By` trailer. `AUTO_COMMIT_TRAILER` replaces the trailer.
 - A branch with an upstream uses the repository's Git push configuration. A branch without an upstream is pushed to the same branch on `origin` when that remote exists.
 - Staging, commit, and push failures appear as a `systemMessage`. A later Stop retries a failed push while the commits are still local. `--dry-run` previews the commit using a temporary index.
 - When `WORKING.md` at the repository root has a `## Lane 1` section, the hook skips staging and committing and only pushes local commits. Several sessions share that worktree, and the commit would sweep in another session's files.

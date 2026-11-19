@@ -71,6 +71,56 @@ class AutoCommitPushTest(unittest.TestCase):
         self.assertEqual(git(self.repo, "status", "--porcelain"), "")
         self.assertEqual(self.remote_rev("main"), git(self.repo, "rev-parse", "HEAD").strip())
 
+    def write_record(self, name, head, folder=".harness/records"):
+        path = self.repo / folder / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(f"---\nid: {name[:-3]}\n{head}---\n\ntitle: not this line\n".encode("utf-8"))
+        return path
+
+    def subject(self):
+        result = self.run_hook()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return subprocess.run(["git", "-C", str(self.repo), "log", "-1", "--format=%s"], check=True,
+                              capture_output=True).stdout.decode("utf-8").strip()
+
+    def test_new_work_record_gives_the_commit_subject(self):
+        (self.repo / "src").mkdir()
+        (self.repo / "src" / "app.py").write_text("print(1)\n", encoding="utf-8")
+        path = self.write_record("2026-11-19-환불.md", 'task: T2\ntitle: "환불 반올림을 줄 단위로: \'합계\' 수정"\n')
+        path.write_bytes(path.read_bytes().replace(b"\n", b"\r\n"))
+        self.assertEqual(self.subject(), "환불 반올림을 줄 단위로: '합계' 수정")
+        message = git(self.repo, "log", "-1", "--format=%B")
+        self.assertIn("A\tsrc/app.py", message)
+        self.assertEqual(self.remote_rev("main"), git(self.repo, "rev-parse", "HEAD").strip())
+
+    def test_record_with_a_byte_order_mark_quotes_inside_and_an_odd_folder(self):
+        path = self.write_record("2026-11-19-bom.md", 'title: "\'Fix refund\'"\n', 'apps/a"b/.harness/records')
+        path.write_bytes(b"\xef\xbb\xbf" + path.read_bytes())
+        self.assertEqual(self.subject(), "'Fix refund'")
+
+    def test_several_new_records_and_a_nested_app(self):
+        self.write_record("2026-11-19-a.md", "title: First fix\n", "apps/shop/.harness/records")
+        self.write_record("2026-11-19-b.md", "title: 'Second fix'\n", "apps/shop/.harness/records")
+        result = self.run_hook("--dry-run")
+        self.assertIn("Subject: First fix (+1 more records)", result.stdout)
+
+    def test_record_that_cannot_give_a_subject_keeps_the_default(self):
+        cases = {"no-title": "task: T1\n", "empty": 'title: ""\n', "blank": 'title: "   "\n',
+                 "long": f"title: {'가' * 80}\n"}
+        for name, head in cases.items():
+            self.write_record(f"2026-11-19-{name}.md", head)
+            self.assertEqual(self.subject(), "Update .harness", name)
+        (self.repo / ".harness" / "records" / "plain.md").write_text("title: no frontmatter\n", encoding="utf-8")
+        self.assertEqual(self.subject(), "Update .harness")
+
+    def test_edited_record_or_record_elsewhere_keeps_the_default(self):
+        path = self.write_record("2026-11-19-a.md", "title: First fix\n")
+        self.assertEqual(self.subject(), "First fix")
+        path.write_bytes(path.read_bytes() + b"more\n")
+        self.assertEqual(self.subject(), "Update .harness")
+        self.write_record("2026-11-19-b.md", "title: Not a record\n", "docs/records")
+        self.assertEqual(self.subject(), "Update docs")
+
     def test_dotfiles_sort_last_and_subject_counts_extras(self):
         for name in (".claude", "a", "b", "c"):
             (self.repo / name).mkdir()

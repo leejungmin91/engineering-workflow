@@ -66,6 +66,28 @@ if [ "$lanes" -eq 0 ] && ! git diff --cached --quiet; then
   else
     subject="Update $head3"
   fi
+  records=$(git diff --cached --name-only -z --diff-filter=A -- \
+    ':(top,glob).harness/records/*.md' ':(top,glob)**/.harness/records/*.md' 2>/dev/null | tr '\000' '\n')
+  if [ -n "$records" ]; then
+    first=$(printf '%s\n' "$records" | head -1)
+    bom=$(printf '\357\273\277')
+    title=$(git show ":$first" 2>/dev/null | tr -d '\r' | LC_ALL=C awk -v bom="$bom" '
+      NR == 1 && index($0, bom) == 1 { $0 = substr($0, 4) }
+      NR == 1 && !/^---[ \t]*$/ { exit }
+      NR > 1 && /^---[ \t]*$/ { exit }
+      /^title:/ { sub(/^title:[ \t]*/, ""); print; exit }')
+    title=$(printf '%s' "$title" | tr '[:cntrl:]' ' ' | sed 's/^ *//; s/ *$//')
+    case $title in
+      \"*\") title=${title#\"}; title=${title%\"} ;;
+      \'*\') title=${title#\'}; title=${title%\'} ;;
+    esac
+    title=$(printf '%s' "$title" | sed 's/^ *//; s/ *$//')
+    extra=$(($(printf '%s\n' "$records" | wc -l | tr -d ' ') - 1))
+    if [ -n "$title" ] && [ "$(printf '%s' "$title" | wc -c | tr -d ' ')" -le 200 ]; then
+      subject=$title
+      [ "$extra" -gt 0 ] && subject="$title (+$extra more records)"
+    fi
+  fi
   body=$(git diff --cached --name-status)
   stamp=$(date '+%Y-%m-%d %H:%M %Z')
   trailer="${AUTO_COMMIT_TRAILER:-Co-Authored-By: Claude <noreply@anthropic.com>}"

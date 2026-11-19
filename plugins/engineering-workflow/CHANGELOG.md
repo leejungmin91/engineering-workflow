@@ -2,6 +2,17 @@
 
 Keep the version in `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json` in sync.
 
+## 0.6.15 — 2026-11-19
+
+사용자 요청: 작업 기록을 건당 파일 하나로 남기고 커밋 제목에 반영한다. 오래된 작업도 조회 한 번으로 찾는다.
+
+- 추가: `scripts/record.py`. `new`는 `.harness/records/<날짜>-<제목 낱말>.md`를 만들고 기존 기록을 덮어쓰지 않는다(동시에 만들어도 한쪽만 성공한다). `check`는 머리말·제목·본문이 없거나 `id`가 파일 이름과 다르면 1로 끝난다.
+- 변경: `auto_commit_push`가 새 작업 기록을 더하는 변경을 커밋할 때 그 기록의 `title`을 커밋 제목으로 쓴다. 기록이 여럿이면 첫 제목에 `(+N more records)`를 붙인다. 옛 기록만 고친 변경, 제목이 비었거나 200바이트를 넘는 기록은 원래 제목을 쓴다.
+- 추가: `references/records.md`, SKILL.md의 "Work records" 절.
+- 실제 그래프로 확인: 이 등록부 작업 12건의 한국어 기록을 비공개 저장소에 쓰고 한국어 질문 18개를 `find --type record` 한 번씩으로 물었다. 18개 모두 3위 안, 14개가 1위였다. 분석기 없이 규칙 방식으로 잰 값이다.
+- 시험: `tests/test_record.py` 5건, `tools/hook_tests/test_auto_commit_push.py`에 5건. 결함 27가지를 되돌려 넣어 모두 실패를 확인했다.
+- 독립 검토: Codex(gpt-6.1-sol, high, 읽기 전용)가 5건을 지적해 모두 반영했다. 공백만 있는 제목, Git이 따옴표로 감싸는 경로 이름, BOM으로 시작하는 기록, 동시에 만들 때 덮어쓰기, 실행 권한이 없는 스크립트를 바로 실행하라고 적은 문서다.
+
 ## 0.6.14 — 2026-11-19
 
 사용자 요청: 한국어를 쓸 때 어색함을 고쳐 주는 장치가 필요하다.

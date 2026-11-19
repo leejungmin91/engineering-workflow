@@ -84,7 +84,7 @@ The plugin bundles three hooks for Claude Code and Codex. In Codex, review and t
 
 | Hook | Event | What it does |
 | --- | --- | --- |
-| `auto_commit_push` | `Stop` | When the assistant finishes a turn, stages remaining changes with `git add -A`, commits with the subject `Update <top-level paths>`, and pushes local commits using the repository's Git configuration. A branch without an upstream is pushed to the same branch on `origin` when that remote exists. |
+| `auto_commit_push` | `Stop` | When the assistant finishes a turn, stages remaining changes with `git add -A`, commits with the subject `Update <top-level paths>` (or the title of a work record added in the change), and pushes local commits using the repository's Git configuration. A branch without an upstream is pushed to the same branch on `origin` when that remote exists. |
 | `board` | `SessionStart`, `PostToolUse`, `Stop` | When the project has `.harness/board.json`, renders the progress board (progress, task list, decisions waiting for the user) to a local HTML page outside the repository, opens it once per session, and redraws it when the file changes. Does nothing without a board file. |
 | `registry_hook` | `UserPromptSubmit` | When a registry config exists, searches the registry for the prompt and attaches at most three candidates the current project can reach. Does nothing without a config, never blocks a prompt, and never writes the prompt to disk. |
 
