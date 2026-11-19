@@ -16,7 +16,7 @@ GIT_IDENTITY = ["-c", "user.name=hook-test", "-c", "user.email=hook-test@example
 
 def git(repo, *args):
     return subprocess.run(["git", "-C", str(repo), *GIT_IDENTITY, *args], check=True,
-                          capture_output=True, text=True).stdout
+                          capture_output=True, encoding="utf-8").stdout
 
 
 @unittest.skipIf(SHELL is None, "needs sh or bash on PATH")
@@ -43,7 +43,7 @@ class AutoCommitPushTest(unittest.TestCase):
         full_env["GIT_AUTHOR_EMAIL"] = full_env["GIT_COMMITTER_EMAIL"] = "hook-test@example.com"
         full_env.update(env or {})
         return subprocess.run([SHELL, str(SCRIPT), *args], input="{}", capture_output=True,
-                              text=True, env=full_env, cwd=str(self.tmp))
+                              encoding="utf-8", errors="replace", env=full_env, cwd=str(self.tmp))
 
     def remote_rev(self, ref):
         return subprocess.run(["git", "-C", str(self.remote), "rev-parse", ref],
@@ -94,7 +94,7 @@ class AutoCommitPushTest(unittest.TestCase):
         self.assertEqual(self.remote_rev("main"), git(self.repo, "rev-parse", "HEAD").strip())
 
     def test_record_with_a_byte_order_mark_quotes_inside_and_an_odd_folder(self):
-        path = self.write_record("2026-11-19-bom.md", 'title: "\'Fix refund\'"\n', 'apps/a"b/.harness/records')
+        path = self.write_record("2026-11-19-bom.md", 'title: "\'Fix refund\'"\n', 'apps/앱 하나/.harness/records')
         path.write_bytes(b"\xef\xbb\xbf" + path.read_bytes())
         self.assertEqual(self.subject(), "'Fix refund'")
 
