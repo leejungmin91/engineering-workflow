@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import os
+import shutil
 import time
 import subprocess
 import sys
@@ -281,6 +282,101 @@ class BoardTests(Case):
         self.assertEqual([path.name for path in board.first_pictures(folder)], [f"{n:04d}.png" for n in range(8)])
         with mock.patch.object(board, "FOLDER_ENTRIES", 0):
             self.assertEqual(board.first_pictures(folder), [])
+
+    def gallery(self):
+        root = self.root / "docs" / "gallery"
+        for folder, names in (("25_ground_sample_G1", ["camp_before_above_after_below.jpg"]),
+                              ("31_ground_sample2_G2", ["camp_now_above_sample_below.jpg", "rock_close.jpg"]),
+                              ("32_start_branches_G1b", ["branches.jpg"])):
+            (root / folder).mkdir(parents=True)
+            for name in names:
+                (root / folder / name).write_bytes(folder.encode() + name.encode())
+        (root / "index.html").write_text(
+            "<h2>Ground (G1): sample A became the game's ground</h2>"
+            "<figure><img src=\"25_ground_sample_G1/camp_before_above_after_below.jpg\"><figcaption>camp</figcaption></figure>"
+            "<h2>Ground sample 2 (G2, waiting) &amp; <b>more</b></h2>"
+            "<figure><a href=\"31_ground_sample2_G2/camp_now_above_sample_below.jpg\"><img src=\"31_ground_sample2_G2/camp_now_above_sample_below.jpg\"></a>"
+            "<figcaption>Camp: above = now</figcaption></figure>"
+            "<figure><img src=\"31_ground_sample2_G2/rock_close.jpg\"><figcaption>위 = 지금, 아래 = 견본 <script>x</script></figcaption></figure>",
+            encoding="utf-8")
+        return root
+
+    def test_pictures_carry_their_caption_section_and_now_and_draft_labels(self):
+        self.gallery()
+        self.save([task("a")], lang="ko", decisions=[{"ask": "G2?", "images": ["docs/gallery/31_ground_sample2_G2"]}])
+        content = self.page()
+        card = content.split('class="decision"')[1]
+        self.assertIn("Ground sample 2 (G2, waiting) &amp; more", card)
+        self.assertIn("<figcaption>Camp: above = now</figcaption>", card)
+        self.assertNotIn("<script>x", content)
+        self.assertEqual(card.count('class="thumb rows"'), 2)
+        self.assertIn('<span class="tag one">지금</span>', card)
+        self.assertIn('<div class="frame">', content)
+        self.assertIn("<h2>지금 하는 일</h2>", content)
+
+    def test_why_steps_and_sources_come_first_and_evidence_is_folded(self):
+        if shutil.which("git") is None:
+            self.skipTest("git is not installed")
+        self.gallery()
+        env = {**os.environ, "GIT_AUTHOR_NAME": "a", "GIT_AUTHOR_EMAIL": "a@a", "GIT_COMMITTER_NAME": "a", "GIT_COMMITTER_EMAIL": "a@a"}
+        run = lambda *args: subprocess.run(["git", "-C", str(self.root), *args], check=True, capture_output=True, env=env)
+        run("init", "-q")
+        run("add", "docs/gallery/25_ground_sample_G1")
+        run("commit", "-q", "-m", "G1 sample")
+        run("add", "docs/gallery")
+        run("commit", "-q", "-m", "G2 sample")
+        self.save([task("a")], lang="ko", decisions=[{
+            "ask": "G2?", "images": ["docs/gallery/31_ground_sample2_G2"],
+            "why": "문제: 땅이 어색하다는 말\n그래서 <b>세 가지</b>만 넣음", "sources": ["docs/research.md"],
+            "history": [{"date": "11-17", "text": "G1을 만듦"}, {"date": "지금", "text": "결정을 기다림"}, "junk"]}])
+        card = self.page().split('class="decision"')[1]
+        self.assertLess(card.index("왜 이렇게 만들었나"), card.index("지나온 과정"))
+        self.assertLess(card.index("지나온 과정"), card.index('class="thumbs"'))
+        self.assertIn("<p>그래서 &lt;b&gt;세 가지&lt;/b&gt;만 넣음</p>", card)
+        self.assertIn("<code>docs/research.md</code>", card)
+        evidence = card[card.index('class="history"'):]
+        self.assertNotIn("open>", evidence.split("</summary>")[0])
+        self.assertIn("Ground (G1): sample A", evidence)
+        self.assertNotIn("branches", evidence)
+        self.assertLess(evidence.index("G1 sample"), evidence.index("G2 sample"))
+        self.save([task("a")], decisions=[{"ask": "x", "history": [{"date": "1"}]}])
+        with self.assertRaises(ValueError):
+            board.load(self.path)
+
+    def test_evidence_skips_links_and_later_drafts_and_shares_one_time_budget(self):
+        root = self.gallery()
+        (root / "35_ground_sample3_G3").mkdir()
+        (root / "35_ground_sample3_G3" / "later.jpg").write_bytes(b"later")
+        outside = self.root.parent / "elsewhere"
+        outside.mkdir()
+        (outside / "secret.jpg").write_bytes(b"secret")
+        (root / "20_ground_old_G0").symlink_to(outside, target_is_directory=True)
+        found = board.family(root / "31_ground_sample2_G2", self.root.resolve())
+        self.assertEqual([path.name for path in found], ["25_ground_sample_G1", "31_ground_sample2_G2"])
+        with mock.patch.object(board, "EVIDENCE_SECONDS", 0):
+            evidence = board.evidence_for({"pictures": [{"name": "docs/gallery/31_ground_sample2_G2/rock_close.jpg"}]},
+                                          self.root.resolve(), time.monotonic())
+        self.assertEqual(evidence["commits"], [])
+
+    def test_captions_come_from_the_named_page_and_nothing_is_cut_silently(self):
+        page = self.root / "docs" / "review.html"
+        (self.root / "docs" / "art").mkdir(parents=True)
+        for name in ("p.png", "q.png", "r.png"):
+            (self.root / "docs" / "art" / name).write_bytes(name.encode())
+        page.write_text("<h2>First</h2><figure><img src=\"art/p.png\"><figcaption>cap p</figcaption></figure>"
+                        "<h2>Second</h2><figure><img src=\"art/q.png\"></figure><h2>Third</h2><figure><img src=\"art/r.png\"></figure>",
+                        encoding="utf-8")
+        sources = [f"docs/s{n}.md" for n in range(7)]
+        self.save([task("a")], decisions=[{"ask": "x", "images": ["docs/review.html"], "sources": sources}])
+        card = self.page().split('class="decision"')[1]
+        self.assertIn("<figcaption>cap p</figcaption>", card)
+        for heading in ("First", "Second", "Third"):
+            self.assertIn(heading, card)
+        self.assertIn("docs/s6.md", card)
+        self.assertIn("b.closest('.thumbs') || b.closest('ol')", self.page())
+        self.save([task("a")], decisions=[{"ask": "x", "sources": [f"s{n}" for n in range(21)]}])
+        with self.assertRaises(ValueError):
+            board.load(self.path)
 
     def test_a_picture_swapped_for_a_link_after_the_check_is_not_copied(self):
         inside = self.root / "a.png"

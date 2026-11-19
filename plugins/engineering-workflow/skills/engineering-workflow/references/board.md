@@ -16,7 +16,14 @@ Keep `.harness/board.json` at the project root and commit it with the work. It i
     {"id": "T3", "title": "Release notes", "status": "todo", "after": ["T2"]}
   ],
   "decisions": [
-    {"ask": "Ship behind a flag or to everyone", "look": "docs/release-plan.md", "default": "behind a flag"}
+    {"ask": "Ship behind a flag or to everyone", "look": "docs/release-plan.md", "default": "behind a flag"},
+    {"ask": "Use ground sample 2: all, some, or none?", "default": "keep today's ground",
+     "images": ["docs/review/31_ground_sample2_G2"],
+     "why": "Problem: the user said the ground still looks awkward after sample A.\nResearch: ...\nSo the sample changes ... because ...\nChecked and worries: ...\nChoices: all, some (for example the patches only), none.",
+     "history": [{"date": "11-17", "text": "Ground sample G1 made as A and B"},
+                 {"date": "11-18", "text": "The user picked A"},
+                 {"date": "now", "text": "Waiting for the user's word"}],
+     "sources": ["docs/research/ground.md"]}
   ]
 }
 ```
@@ -24,6 +31,7 @@ Keep `.harness/board.json` at the project root and commit it with the work. It i
 - `status` is `todo`, `doing`, `done`, `blocked`, or `parked`. Progress is the share of tasks that are `done`, rounded down, so 100% means every task is done.
 - IDs follow the [completion record](harness-record.md) rules, and `after` lists prerequisite task IDs. Use the same IDs in both files.
 - `decisions` holds what only the user can decide: what is asked, the picture or file to look at, and the default in use meanwhile. Bullet lines under `## Waiting for the user` in `WORKING.md` are shown as well, wrapped lines included, so a multi-session project keeps one list there. Set `"working_decisions": false` in the board when the board's own `decisions` are the list and that section holds notes the page should not repeat.
+- A decision that comes with pictures also says why the draft was made this way, in the user's language: `why` (one paragraph per line: the problem and the user's words, what was researched, what the draft changes and why this way, what was checked and what worries remain, the choices) and `history` (date and one line per step that led here). `sources` lists the documents behind it. These are written by the session that made the draft; nothing can generate them.
 - `lang` selects the page labels: `en` or `ko`. `owner` and `note` are optional.
 
 ## When to update it
@@ -44,7 +52,7 @@ What the page shows, top first:
 
 - The title with what needs the user: the number of decisions and of blocked tasks, or a "nothing blocked" chip. Beside it, how long ago the board file changed; it turns amber after a day.
 - Three cards: what is in progress now; what comes next (todo tasks whose `after` tasks are done, or, when none is ready, the waiting ones with what they wait for); and progress as a percentage with a bar split by state and a legend that gives every count.
-- The decisions, numbered, each with its default and the file to look at. Pictures show as small previews: a picture path in `look` or in an optional `images` list, every picture in a folder named there, and the pictures a named `.html` or `.md` document shows (`<img src>`, `![](...)`, links to pictures, resolved from the document's folder); a click opens the picture large, with previous and next for the decision's other pictures, and Esc or a click outside closes it. Only files inside the project, up to 20 MB and eight per decision, are shown. They are copied to `assets/` beside the page, so the page also works when the board folder is served. The page does not reload while a picture is open.
+- The decisions, numbered, each with its default and the file to look at. On the page a decision shows, in this order: why it was made this way, how it got here, its sources, an "about the drafts" line (the heading of the section that shows the pictures in the gallery page), the pictures with their captions, and folded evidence (earlier drafts in the same series, matched by the letter code and a shared word in the folder name, and the commits that changed those folders, oldest first). A comparison picture whose file name says `now_above_sample_below` or `before_left_after_right` (or whose caption says 위 = 지금, 아래 = 견본) carries "now" and "draft" labels on its halves, also when opened large. Pictures show as small previews: a picture path in `look` or in an optional `images` list, every picture in a folder named there, and the pictures a named `.html` or `.md` document shows (`<img src>`, `![](...)`, links to pictures, resolved from the document's folder); a click opens the picture large, with previous and next for the decision's other pictures, and Esc or a click outside closes it. Only files inside the project, up to 20 MB and eight per decision, are shown. They are copied to `assets/` beside the page, so the page also works when the board folder is served. The page does not reload while a picture is open.
 - The tasks grouped by state (in progress, blocked, parked, to do), each group with its count. A task waiting on others says which. Done tasks are folded. Long notes show one line and open on click. With two or more owners, buttons filter by owner.
 - The newest five work records in `.harness/records/`.
 

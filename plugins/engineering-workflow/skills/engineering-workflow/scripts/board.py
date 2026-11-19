@@ -10,6 +10,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.parse
 from datetime import datetime
 from pathlib import Path
@@ -29,7 +30,7 @@ LABELS = {
         "list": "Tasks", "now": "Now", "next": "Next", "idle": "Nothing is in progress.",
         "clear": "Nothing left to start.", "after": "after", "everyone": "Everyone", "records": "Recent work records",
         "need": "Decisions", "ok": "Nothing blocked", "signal": "Signal", "focus": "Now", "on": "On track",
-        "order": "Boards with decisions or blocked work come first", "close": "Close", "picture": "Picture",
+        "order": "Boards with decisions or blocked work come first", "close": "Close", "picture": "Picture", "about": "About the drafts:", "nowTag": "Now", "draftTag": "Draft", "history": "Evidence: earlier drafts and commits", "earlierDraft": "Earlier draft", "why": "Why it was made this way", "path": "How it got here", "sources": "Sources",
         "prev": "Previous", "nextpic": "Next", "registry": "Registry: graph, judge, models, connection",
     },
     "ko": {
@@ -40,7 +41,7 @@ LABELS = {
         "list": "작업", "now": "지금 하는 일", "next": "다음 차례", "idle": "진행 중인 작업이 없습니다.",
         "clear": "남은 작업이 없습니다.", "after": "다음", "everyone": "전체", "records": "최근 작업 기록",
         "need": "결정 필요", "ok": "막힌 것 없음", "signal": "신호", "focus": "지금", "on": "순조",
-        "order": "결정이나 막힘이 있는 보드가 위에 옵니다", "close": "닫기", "picture": "그림",
+        "order": "결정이나 막힘이 있는 보드가 위에 옵니다", "close": "닫기", "picture": "그림", "about": "시안 설명", "nowTag": "지금", "draftTag": "견본", "history": "근거: 이전 시안과 커밋", "earlierDraft": "이전 시안", "why": "왜 이렇게 만들었나", "path": "지나온 과정", "sources": "자료",
         "prev": "이전", "nextpic": "다음", "registry": "등록부: 그래프, 판단, 모델, 연결",
     },
 }
@@ -53,6 +54,8 @@ PATH_WORD = re.compile(r"`([^`\n]+)`|([^\s`'\"()<>,;]+)")
 EMBED_START = re.compile(r"\]\(|\b(?:src|href)\s*=\s*", re.I)
 DOCUMENT_BYTES = 2 * 1024 * 1024
 FOLDER_ENTRIES = 5000
+SOURCES = 20
+EVIDENCE_SECONDS = 4.0
 RECORDS = 5
 STALE_HOURS = 24
 STYLE = """
@@ -103,7 +106,21 @@ details.fold>summary{cursor:pointer;color:var(--ink2);font-weight:600;font-size:
 .mark.blocked{color:var(--blocked)}.mark.parked{color:var(--warn-ink)}
 .thumbs{grid-column:2;display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
 .thumb{padding:0;border:0;background:none;cursor:zoom-in;border-radius:8px;box-shadow:inset 0 0 0 1px var(--ring)}
-.thumb img{display:block;width:96px;height:72px;object-fit:cover;border-radius:8px}
+.thumb img{display:block;width:150px;height:110px;object-fit:cover;border-radius:8px}
+.thumb{position:relative}.tag{position:absolute;font-size:10px;font-weight:600;padding:1px 6px;border-radius:999px;
+background:rgba(0,0,0,.66);color:#fff;pointer-events:none}.tag.two{background:rgba(42,120,214,.88)}
+.rows .tag.one{top:4px;left:4px}.rows .tag.two{top:calc(50% + 4px);left:4px}
+.columns .tag.one{top:4px;left:4px}.columns .tag.two{top:4px;left:calc(50% + 4px)}
+dialog.viewer .frame{position:relative;display:inline-block}dialog.viewer .frame .tag{font-size:13px;padding:3px 10px}
+.why,.path{grid-column:2;margin-top:8px;font-size:13px;line-height:1.6;color:var(--ink);background:rgba(127,127,127,.06);border-radius:10px;padding:10px 12px}
+.why b,.path b{display:block;font-size:12px;color:var(--warn-ink);margin-bottom:4px}.why p{margin:0 0 6px}.why p:last-child{margin:0}
+.path ol{list-style:none;margin:0;padding:0 0 0 12px;border-left:2px solid var(--line)}.path li{display:flex;gap:10px;margin:4px 0}
+.path .when{color:var(--muted);min-width:42px;font-variant-numeric:tabular-nums}.src{grid-column:2;font-size:11px;color:var(--muted);margin:6px 0 0}
+.history{grid-column:2;margin-top:8px;font-size:12px;color:var(--ink2)}.history summary{cursor:pointer;color:var(--ink);font-weight:600}
+.history ol{list-style:none;margin:6px 0 0;padding:0 0 0 12px;border-left:2px solid var(--line)}.history li{display:flex;gap:8px;align-items:center;margin:5px 0}
+.history .when{color:var(--muted);min-width:58px;font-variant-numeric:tabular-nums}.thumb.mini img{width:56px;height:40px}
+.shot{margin:0;width:150px}.shot figcaption{font-size:11px;line-height:1.4;color:var(--ink2);margin-top:4px}
+.story{grid-column:2;margin:6px 0 0;font-size:12px;color:var(--ink2);line-height:1.5}.story b{color:var(--ink);font-weight:600;margin-right:4px}
 .thumb:focus-visible{outline:2px solid var(--doing);outline-offset:2px}
 dialog.viewer{border:0;padding:0;background:transparent;max-width:96vw;max-height:96vh;color:var(--ink)}
 dialog.viewer::backdrop{background:rgba(0,0,0,.82)}
@@ -140,9 +157,11 @@ if (viewer) {
   const big = viewer.querySelector('img'), caption = viewer.querySelector('.name');
   let group = [], at = 0;
   const show = (i) => { at = (i + group.length) % group.length; const b = group[at];
-    big.src = b.dataset.full; big.alt = b.dataset.name; caption.textContent = b.dataset.name + (group.length > 1 ? ' (' + (at + 1) + '/' + group.length + ')' : ''); };
+    big.src = b.dataset.full; big.alt = b.dataset.name; const frame = viewer.querySelector('.frame');
+    frame.className = 'frame ' + (b.dataset.layout || ''); frame.querySelectorAll('.tag').forEach((t) => { t.hidden = !b.dataset.layout; }); caption.textContent = b.dataset.name + (group.length > 1 ? ' (' + (at + 1) + '/' + group.length + ')' : ''); };
   document.querySelectorAll('.thumb').forEach((b) => b.addEventListener('click', () => {
-    group = [...b.closest('.thumbs').querySelectorAll('.thumb')]; show(group.indexOf(b)); viewer.showModal(); }));
+    const box = b.closest('.thumbs') || b.closest('ol'); group = box ? [...box.querySelectorAll('.thumb')] : [b];
+    show(group.indexOf(b)); viewer.showModal(); }));
   viewer.querySelector('.prev').addEventListener('click', (e) => { e.stopPropagation(); show(at - 1); });
   viewer.querySelector('.next').addEventListener('click', (e) => { e.stopPropagation(); show(at + 1); });
   viewer.querySelector('.close').addEventListener('click', () => viewer.close());
@@ -204,7 +223,11 @@ def load(path):
         decisions.append({"ask": text(item.get("ask"), "decision ask"),
                           "look": text(item.get("look"), "decision look", False),
                           "default": text(item.get("default"), "decision default", False),
-                          "images": images(item.get("images", []))})
+                          "images": images(item.get("images", [])),
+                          "why": text(item.get("why"), "decision why", False),
+                          "steps": [{"date": text(step.get("date"), "history date", False), "text": text(step.get("text"), "history text")}
+                                            for step in (item.get("history") if isinstance(item.get("history"), list) else []) if isinstance(step, dict)],
+                          "sources": sources(item.get("sources", []))})
     lang = raw.get("lang", "en")
     merge = raw.get("working_decisions", True)
     if not isinstance(merge, bool):
@@ -212,6 +235,12 @@ def load(path):
     return {"title": text(raw.get("title", "Work board"), "title"),
             "lang": lang if isinstance(lang, str) and lang in LABELS else "en",
             "tasks": tasks, "decisions": decisions, "working_decisions": merge}
+
+
+def sources(value):
+    if not isinstance(value, list) or len(value) > SOURCES or not all(isinstance(entry, str) for entry in value):
+        raise ValueError(f"decision sources must be a list of at most {SOURCES} paths")
+    return [entry.strip() for entry in value if entry.strip()]
 
 
 def images(value):
@@ -239,15 +268,15 @@ def candidates(item, base):
         if path is None or not path.exists():
             continue
         if path.is_dir():
-            yield from first_pictures(path)
+            yield from ((picture, None) for picture in first_pictures(path))
         elif path.suffix.lower() in PICTURE_KINDS:
-            yield path
+            yield path, None
         elif path.suffix.lower() in DOCUMENT_KINDS:
             text = read_inside(path, base)
             for link in embedded(text):
                 found = inside(base, link, path.parent)
                 if found is not None and found.suffix.lower() in PICTURE_KINDS:
-                    yield found
+                    yield found, path
 
 
 def first_pictures(folder):
@@ -304,10 +333,121 @@ def embedded(text):
             yield link
 
 
+FIGURE = re.compile(r"<(h[1-3])[^>]*>(.*?)</\1>|<figure[^>]*>(.*?)</figure>", re.S | re.I)
+TAG = re.compile(r"<[^>]+>")
+
+
+def plain_text(value):
+    return html.unescape(re.sub(r"\s+", " ", TAG.sub(" ", value))).strip()
+
+
+def explainers(path, base, given):
+    seen, folder = [], path.parent
+    for candidate in [given] + [folder / "index.html", folder.parent / "index.html", folder.parent.parent / "index.html"]:
+        if candidate is None or candidate in seen or inside(base, candidate) is None or not Path(candidate).is_file():
+            continue
+        seen.append(candidate)
+        yield Path(candidate)
+
+
+LAYOUT_NAME = re.compile(r"(now|before|current|old)_(above|left|top)_(sample|after|new|draft)_(below|right|bottom)", re.I)
+LAYOUT_TEXT = re.compile(r"(위|왼쪽)\s*=\s*(지금|현재|이전)\s*,\s*(아래|오른쪽)\s*=\s*(견본|시안|새)", re.I)
+
+
+def layout_for(name, caption):
+    found = LAYOUT_NAME.search(name)
+    if found:
+        return "rows" if found.group(2).lower() in ("above", "top") else "columns"
+    found = LAYOUT_TEXT.search(caption or "")
+    if found:
+        return "rows" if found.group(1) == "위" else "columns"
+    return ""
+
+
+def caption_for(path, base, given=None):
+    for page in explainers(path, base, given):
+        text = read_inside(page, base)
+        section = ""
+        for heading_tag, heading, figure in FIGURE.findall(text):
+            if heading_tag:
+                section = plain_text(heading)
+                continue
+            for link in embedded(figure):
+                if inside(base, link, page.parent) == path:
+                    caption = re.search(r"<figcaption[^>]*>(.*?)</figcaption>", figure, re.S | re.I)
+                    return (plain_text(caption.group(1)) if caption else ""), section
+    return "", ""
+
+
+CODE = re.compile(r"(?:^|_)([A-Z]{1,2})(\d+)([a-z]?)(?:_|$)")
+NUMBERED = re.compile(r"^(\d+)_")
+
+
+def words_of(name):
+    return {part for part in NUMBERED.sub("", name).split("_") if part and not CODE.search("_" + part + "_") and not part.isdigit()}
+
+
+def family(folder, base):
+    code = CODE.search(folder.name)
+    if not code:
+        return [folder]
+    mine, found = words_of(folder.name), [folder]
+    number = NUMBERED.match(folder.name)
+    try:
+        siblings = [entry for entry in folder.parent.iterdir() if entry.is_dir() and not entry.is_symlink()]
+    except OSError:
+        return [folder]
+    for other in siblings:
+        theirs, rank = CODE.search(other.name), NUMBERED.match(other.name)
+        if other == folder or not theirs or theirs.group(1) != code.group(1) or not words_of(other.name) & mine:
+            continue
+        if number and (not rank or int(rank.group(1)) >= int(number.group(1))):
+            continue
+        if inside(base, other) is not None:
+            found.append(other)
+    return sorted(found, key=lambda path: int(NUMBERED.match(path.name).group(1)) if NUMBERED.match(path.name) else 0)
+
+
+def headings(page, base):
+    text, current, found = read_inside(page, base), "", {}
+    for heading_tag, heading, figure in FIGURE.findall(text):
+        if heading_tag:
+            current = plain_text(heading)
+            continue
+        for link in embedded(figure):
+            target = inside(base, link, page.parent)
+            if target is not None:
+                found.setdefault(target.parent, current)
+    return found
+
+
+def evidence_for(item, base, deadline=None):
+    folders = list(dict.fromkeys(Path(base / pic["name"]).parent for pic in item.get("pictures", [])))
+    if not folders:
+        return {"earlier": [], "commits": []}
+    related = list(dict.fromkeys(path for folder in folders for path in family(folder, base)))
+    sections = {}
+    for page in explainers(folders[0] / "x", base, None):
+        sections.update(headings(page, base))
+    earlier = [{"name": path.name, "text": sections.get(path, ""), "picture": next(iter(first_pictures(path)), None)}
+               for path in related if path not in folders]
+    try:
+        left = 3.0 if deadline is None else min(3.0, deadline - time.monotonic())
+        if left <= 0.1:
+            raise subprocess.TimeoutExpired("git", 0)
+        log = subprocess.run(["git", "--no-optional-locks", "-C", str(base), "log", "-n", "8", "--date=short",
+                              "--format=%h%x00%ad%x00%s", "--", *[str(path.relative_to(base)) for path in related]],
+                             capture_output=True, text=True, timeout=left, check=True).stdout
+        commits = [dict(zip(("hash", "date", "subject"), line.split("\0"))) for line in log.splitlines() if line.count("\0") == 2]
+    except (OSError, subprocess.SubprocessError, ValueError):
+        commits = []
+    return {"earlier": earlier, "commits": commits[::-1]}
+
+
 def pictures(item, root, folder):
     base = Path(root).resolve()
     found, seen = [], set()
-    for path in candidates(item, base):
+    for path, document in candidates(item, base):
         try:
             info = path.stat()
         except OSError:
@@ -322,7 +462,9 @@ def pictures(item, root, folder):
                 copy_inside(path, base, target)
         except OSError:
             continue
-        found.append({"src": f"assets/{target.name}", "name": str(path.relative_to(base))})
+        caption, section = caption_for(path, base, document)
+        found.append({"src": f"assets/{target.name}", "name": str(path.relative_to(base)), "caption": caption,
+                      "section": section, "layout": layout_for(path.name, caption)})
         if len(found) >= PICTURES:
             break
     return found
@@ -484,15 +626,42 @@ def render(board, root, stamp, refresh=5, at=0):
         extra = (f"<span class=\"chip\">{esc(words['default'])}: {esc(item['default'])}</span>" if item["default"] else "")
         extra += f"<span>{esc(words['look'])}: {esc(item['look'])}</span>" if item["look"] else ""
         thumbs = "".join(
-            f"<button class=\"thumb\" type=\"button\" data-full=\"{esc(pic['src'])}\" data-name=\"{esc(pic['name'])}\" "
-            f"aria-label=\"{esc(words['picture'])}: {esc(pic['name'])}\"><img src=\"{esc(pic['src'])}\" alt=\"\" "
-            f"loading=\"lazy\"></button>" for pic in item.get("pictures", []))
-        thumbs = f"<div class=\"thumbs\">{thumbs}</div>" if thumbs else ""
+            f"<figure class=\"shot\"><button class=\"{esc(' '.join(['thumb'] + ([pic['layout']] if pic.get('layout') else [])))}\" type=\"button\" data-full=\"{esc(pic['src'])}\" "
+            f"data-layout=\"{esc(pic.get('layout') or '')}\" "
+            f"data-name=\"{esc(pic.get('caption') or pic['name'])}\" aria-label=\"{esc(words['picture'])}: "
+            f"{esc(pic.get('caption') or pic['name'])}\"><img src=\"{esc(pic['src'])}\" alt=\"\" loading=\"lazy\">"
+            + (f"<span class=\"tag one\">{esc(words['nowTag'])}</span><span class=\"tag two\">{esc(words['draftTag'])}</span>"
+               if pic.get("layout") else "") + "</button>"
+            f"<figcaption>{esc(pic.get('caption') or Path(pic['name']).name)}</figcaption></figure>"
+            for pic in item.get("pictures", []))
+        sections = list(dict.fromkeys(pic.get("section") for pic in item.get("pictures", []) if pic.get("section")))
+        story = "".join(f"<p class=\"story\"><b>{esc(words['about'])}</b> {esc(text)}</p>" for text in sections)
+        thumbs = f"{story}<div class=\"thumbs\">{thumbs}</div>" if thumbs else ""
+        reason = ""
+        if item.get("why"):
+            reason = ("<div class=\"why\"><b>" + esc(words['why']) + "</b>" + "".join(f"<p>{esc(line)}</p>" for line in item["why"].split("\n") if line.strip()) + "</div>")
+        if item.get("steps"):
+            reason += ("<div class=\"path\"><b>" + esc(words['path']) + "</b><ol>" + "".join(
+                f"<li><span class=\"when\">{esc(step['date'])}</span><span>{esc(step['text'])}</span></li>" for step in item["steps"]) + "</ol></div>")
+        if item.get("sources"):
+            reason += "<p class=\"src\">" + esc(words['sources']) + ": " + ", ".join(f"<code>{esc(source)}</code>" for source in item["sources"]) + "</p>"
+        past = item.get("evidence") or {}
+        steps = "".join(
+            f"<li><span class=\"when\">{esc(words['earlierDraft'])}</span>"
+            + (f"<button class=\"thumb mini\" type=\"button\" data-full=\"{esc(entry['thumb']['src'])}\" data-name=\"{esc(entry['text'] or entry['name'])}\" data-layout=\"{esc(entry['thumb'].get('layout') or '')}\"><img src=\"{esc(entry['thumb']['src'])}\" alt=\"\"></button>" if entry.get("thumb") else "")
+            + f"<span>{esc(entry['text'] or entry['name'])}</span></li>" for entry in past.get("earlier", []))
+        steps += "".join(f"<li><span class=\"when\">{esc(commit['date'][5:])}</span><span class=\"id\">{esc(commit['hash'])}</span>"
+                         f"<span>{esc(commit['subject'])}</span></li>" for commit in past.get("commits", []))
+        if steps:
+            thumbs += (f"<details class=\"history\" id=\"history-{number}\"><summary>{esc(words['history'])}</summary>"
+                       f"<ol>{steps}</ol></details>")
+        thumbs = reason + thumbs
         asks.append(f"<div class=\"decision\"><span class=\"n\">{number}</span><b>{esc(item['ask'])}</b>"
                     f"<div class=\"more\">{extra}</div>{thumbs}</div>")
     count = f"<span class=\"chip warn\">{len(asks)}</span>" if asks else ""
     if any(item.get("pictures") for item in board["decisions"]):
-        body += (f"<dialog class=\"viewer\" aria-label=\"{esc(words['picture'])}\"><img alt=\"\"><div class=\"bar2\">"
+        body += (f"<dialog class=\"viewer\" aria-label=\"{esc(words['picture'])}\"><div class=\"frame\"><img alt=\"\">"
+                 f"<span class=\"tag one\">{esc(words['nowTag'])}</span><span class=\"tag two\">{esc(words['draftTag'])}</span></div><div class=\"bar2\">"
                  f"<button class=\"prev\" type=\"button\">{esc(words['prev'])}</button><span class=\"name\"></span>"
                  f"<button class=\"next\" type=\"button\">{esc(words['nextpic'])}</button>"
                  f"<button class=\"close\" type=\"button\">{esc(words['close'])}</button></div></dialog>")
@@ -613,8 +782,14 @@ def draw(board_path, root, folder):
     board = load(board_path)
     if board["working_decisions"]:
         board["decisions"] = board["decisions"] + working_decisions(root)
+    deadline = time.monotonic() + EVIDENCE_SECONDS
     for item in board["decisions"]:
         item["pictures"] = pictures(item, root, folder)
+        item["evidence"] = evidence_for(item, Path(root).resolve(), deadline)
+        for entry in item["evidence"]["earlier"]:
+            if entry["picture"]:
+                copied = pictures({"images": [str(entry["picture"])]}, root, folder)
+                entry["thumb"] = copied[0] if copied else None
     moment = board_path.stat().st_mtime
     stamp = datetime.fromtimestamp(moment).strftime("%Y-%m-%d %H:%M")
     return board, stamp, int(moment * 1000)
