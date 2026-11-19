@@ -9,7 +9,7 @@ Files stay the source of truth. Every command first scans the configured files a
 - Before creating a skill, run `dupes` with the planned description. Edit the existing skill when one matches.
 - Before changing a skill, tool, plugin, or rule, run `impact` and verify the apps it lists.
 - After a fix that other apps may need, run `spread` on its work record.
-- To recall earlier work, run `find` with a few words, then `neighbors` on the record. Open only the files the answer names.
+- To recall earlier work, run `find` with a few words, then `neighbors` on the record. Every app's git history is in the graph too: `find ... --type commit` finds a commit by its subject or body, and `neighbors` shows its branch when it is not merged. Open only the files the answer names.
 - Do not query the graph server directly. If a command is missing, say so.
 
 ## Commands
@@ -19,6 +19,7 @@ Run from the skill directory. A node is named by its id (`skill:store-release`),
 ```sh
 python3 scripts/registry.py find refund rounding
 python3 scripts/registry.py find release notes --type skill --limit 3
+python3 scripts/registry.py find unused images cleanup --type commit
 python3 scripts/registry.py dupes prepare a store release with screenshots
 python3 scripts/registry.py neighbors task:shop/T2
 python3 scripts/registry.py impact tool:mcp:app-store

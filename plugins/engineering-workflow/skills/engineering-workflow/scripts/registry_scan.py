@@ -2,9 +2,11 @@ import argparse
 import fnmatch
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 BODY_LIMIT = 4000
@@ -32,6 +34,12 @@ COLUMNS = {"file": "file", "files": "file", "licence": "license", "license": "li
            "from": "source", "author": "author", "by": "author"}
 CREDIT_FILES = "*CREDITS.md"
 GIT_TIMEOUT = 5
+HISTORY_MAX = 3000
+GIT_BUDGET = 2.0
+HISTORY_CAP = 100000
+CACHE = Path.home() / ".cache" / "engineering-workflow" / "registry-history"
+TEXT_LIMIT = 1500
+TRAILER = re.compile(r"^(?:Co-Authored-By|Signed-off-by|Reviewed-by|Change-Id):.*$", re.IGNORECASE | re.MULTILINE)
 SCANNER = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 SESSION_LINE = re.compile(r"([A-Za-z][\w-]{0,30}):\s+(.+)")
 SESSION_ID = re.compile(r"session_id=([0-9a-fA-F-]{8,})")
@@ -246,7 +254,7 @@ def record_facts(content, origin):
     links.extend(link(me, "RAN_ON", f"model:{item}") for item in listed(fields.get("model")))
     links.extend(link(me, "CONCERNS", reference(item, "skill")) for item in listed(fields.get("concerns")))
     reviewer, _, verdict = (fields.get("review") or "").partition(":")
-    for commit in listed(fields.get("commits")):
+    for commit in [item[:7] if re.fullmatch(r"[0-9a-f]{8,40}", item) else item for item in listed(fields.get("commits"))]:
         nodes.append(node("commit", f"{name}/{commit}", name=commit))
         links.append(link(me, "PRODUCED", f"commit:{name}/{commit}"))
         if reviewer.strip():
@@ -434,14 +442,16 @@ def credits_facts(content, origin):
     return nodes, links
 
 
-def credit_files(root, ignore):
+def credit_files(root, ignore, deadline=None):
+    if not (Path(root) / ".git").exists():
+        return []
     try:
-        listed_files = subprocess.run(["git", "--no-optional-locks", "-C", str(root), "ls-files", "-z", "--",
-                                       CREDIT_FILES], capture_output=True, timeout=GIT_TIMEOUT, check=True).stdout
+        listed_files = git(root, time.monotonic() + GIT_TIMEOUT if deadline is None else deadline,
+                           "ls-files", "-z", "--", CREDIT_FILES)
     except (OSError, subprocess.SubprocessError):
         return []
     found = []
-    for relative in listed_files.decode("utf-8", "replace").split("\0"):
+    for relative in listed_files.split("\0"):
         parts = Path(relative).parts
         if not relative or parts[-1] != "CREDITS.md" or any(part.startswith(".") for part in parts[:-1]):
             continue
@@ -514,7 +524,7 @@ def skill_files(folder):
     return sorted(found)
 
 
-def discover(config):
+def discover(config, deadline=None):
     apps = [(item["name"], Path(item["path"])) for item in config.get("apps", [])]
     every = [f"app:{name}" for name, _ in apps]
     machines = {item["name"]: item.get("machine") or config.get("machine") for item in config.get("apps", [])}
@@ -533,7 +543,7 @@ def discover(config):
         for path in sorted((root / ".harness" / "assets").glob("*.md")) if (root / ".harness" / "assets").is_dir() else []:
             add(path, "asset", app=app)
         add(root / "WORKING.md", "working", app=app, machine=machines.get(name))
-        for relative in credit_files(root, ignores.get(name, [])):
+        for relative in credit_files(root, ignores.get(name, []), deadline):
             add(root / relative, "credits", app=app, folder=str(Path(relative).parent.as_posix()).strip("."))
         for rules in ("CLAUDE.md", "AGENTS.md"):
             add(root / rules, "rules", apps=[app], scope="project")
@@ -568,8 +578,107 @@ def discover(config):
     return apps, sources
 
 
+def git(root, deadline, *args):
+    left = deadline - time.monotonic()
+    if left <= 0:
+        raise subprocess.TimeoutExpired("git", 0)
+    return subprocess.run(["git", "-c", "i18n.logOutputEncoding=UTF-8", "--no-optional-locks", "-C", str(root), *args],
+                          capture_output=True,
+                          timeout=min(GIT_TIMEOUT, left), check=True).stdout.decode("utf-8", "replace")
+
+
+def history_limits(settings):
+    settings = settings if isinstance(settings, dict) else {}
+    most = settings.get("max", HISTORY_MAX)
+    most = most if isinstance(most, int) and not isinstance(most, bool) and 0 < most <= HISTORY_CAP else HISTORY_MAX
+    since = settings.get("since")
+    since = [f"--since={since}"] if isinstance(since, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", since) else []
+    return ["-n", str(most)], since
+
+
+def history(name, root, settings, deadline):
+    limit, since = history_limits(settings)
+    try:
+        main = git(root, deadline, "symbolic-ref", "-q", "refs/remotes/origin/HEAD").strip() or "HEAD"
+    except subprocess.CalledProcessError as error:
+        if error.returncode != 1:
+            raise
+        main = "HEAD"
+    logged = git(root, deadline, "log", "--branches", "--no-merges", "--date=short", *limit, *since,
+                 "--format=%H%x00%ad%x00%s%x00%b%x00").split("\0")
+    apart = {}
+    for line in git(root, deadline, "log", "--branches", "--not", main, "--no-merges", "--source",
+                    "--format=%H%x00%S", *limit).splitlines():
+        full, _, ref = line.partition("\0")
+        apart[full] = ref
+    buckets = {}
+    for start in range(0, len(logged) - 3, 4):
+        full, date, subject, body = logged[start].strip("\n"), *logged[start + 1:start + 4]
+        if not re.fullmatch(r"[0-9a-f]{40}", full):
+            continue
+        body = TRAILER.sub("", body).strip()[:TEXT_LIMIT]
+        key = f"{name}/{full[:7]}"
+        buckets.setdefault(date[:7], []).append((
+            node("commit", key, name=subject, text=body, date=date, branch=apart.get(full),
+                 merged=full not in apart), link(f"commit:{key}", "IN", f"app:{name}")))
+    files = {}
+    for month, found in sorted(buckets.items()):
+        nodes, links = [item for item, _ in found], [item for _, item in found]
+        stamp = json.dumps([nodes, links, SCANNER], sort_keys=True, ensure_ascii=False).encode("utf-8")
+        files[f"git:{name}/{month}"] = {"kind": "commits", "hash": hashlib.sha256(stamp).hexdigest(),
+                                         "nodes": nodes, "links": links}
+    return files
+
+
+def cache_file(config, name, root):
+    folder = Path(config.get("cache") or CACHE)
+    digest = hashlib.sha256("\n".join((name, str(root))).encode("utf-8")).hexdigest()[:16]
+    return folder / f"{digest}.json"
+
+
+def remembered(path):
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) and all(key.startswith("git:") for key in data) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def remember(path, files):
+    try:
+        text = json.dumps(files, ensure_ascii=False, sort_keys=True)
+        if path.is_file() and path.read_text(encoding="utf-8") == text:
+            return
+        path.parent.mkdir(parents=True, exist_ok=True)
+        spare = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+        spare.write_text(text, encoding="utf-8")
+        os.replace(spare, path)
+    except OSError:
+        pass
+
+
+def histories(config, deadline):
+    files = {}
+    for item in config.get("apps", []):
+        name, root, settings = item["name"], Path(item["path"]), item.get("history", True)
+        if settings is False or not (root / ".git").exists():
+            continue
+        saved = cache_file(config, name, root)
+        try:
+            found = history(name, root, settings, deadline)
+            remember(saved, found)
+        except (OSError, subprocess.SubprocessError, UnicodeError) as error:
+            found = remembered(saved)
+            files[f"git:{name}"] = {"kind": "commits", "hash": "unreadable", "nodes": [], "links": [],
+                                    "error": f"{type(error).__name__}: history from the last good read"
+                                             f" ({len(found)} months)"}
+        files.update(found)
+    return files
+
+
 def scan(config):
-    apps, sources = discover(config)
+    deadline = time.monotonic() + GIT_BUDGET
+    apps, sources = discover(config, deadline)
     files = {"config:apps": {"kind": "apps", "hash": hashlib.sha256(
         json.dumps(sorted((name, str(root)) for name, root in apps)).encode("utf-8")).hexdigest(),
         "nodes": [node("app", name, path=str(root)) for name, root in apps], "links": []}}
@@ -588,6 +697,7 @@ def scan(config):
             entry.update({"nodes": [], "links": [], "error": f"{type(error).__name__}: {error}"})
             entry.setdefault("hash", "unreadable")
         files[str(path)] = entry
+    files.update(histories(config, deadline))
     return {"files": files}
 
 

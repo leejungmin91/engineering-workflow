@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -90,7 +91,7 @@ class ScanTests(unittest.TestCase):
         write(self.plugin / "skills" / "flow" / "SKILL.md", "---\nname: flow\ndescription: \"Plan: and verify\"\n---\n")
         self.glossary = base / "glossary.txt"
         write(self.glossary, "레그 = RAG\n눈밥 = app:shop\n# note = skipped\nbroken line\n")
-        self.config = {"apps": [{"name": "shop", "path": str(self.shop)}, {"name": "game", "path": str(self.game)}],
+        self.config = {"cache": str(base / "cache"), "apps": [{"name": "shop", "path": str(self.shop)}, {"name": "game", "path": str(self.game)}],
                        "user": str(self.user), "plugins": [str(self.plugin)], "glossary": str(self.glossary)}
 
     def facts(self):
@@ -276,6 +277,142 @@ class ScanTests(unittest.TestCase):
         files, _, _ = self.facts()
         self.assertFalse([path for path in files if path.endswith("CREDITS.md")])
         self.assertEqual(registry_scan.credit_files(self.game / "missing", []), [])
+
+    def repo(self):
+        if shutil.which("git") is None:
+            self.skipTest("git is not installed")
+        run = lambda *args, **env: subprocess.run(["git", "-C", str(self.game), *args], check=True, capture_output=True,
+                                                  env={**os.environ, "GIT_AUTHOR_NAME": "a", "GIT_AUTHOR_EMAIL": "a@a",
+                                                       "GIT_COMMITTER_NAME": "a", "GIT_COMMITTER_EMAIL": "a@a", **env})
+        subprocess.run(["git", "init", "-q", "-b", "main", str(self.game)], check=True)
+        run("add", "AGENTS.md")
+        run("commit", "-q", "-m", "First step\n\nWhy it was done.\n\nCo-Authored-By: x <x@x>",
+            GIT_AUTHOR_DATE="2026-10-05T10:00:00", GIT_COMMITTER_DATE="2026-10-05T10:00:00")
+        run("checkout", "-q", "-b", "side")
+        write(self.game / "side.txt", "x")
+        run("add", "side.txt")
+        run("commit", "-q", "-m", "Side cleanup", GIT_AUTHOR_DATE="2026-11-02T10:00:00",
+            GIT_COMMITTER_DATE="2026-11-02T10:00:00")
+        run("checkout", "-q", "main")
+        return run
+
+    def commits(self):
+        files, nodes, _ = self.facts()
+        return files, {item["name"]: item for key, item in nodes.items() if key.startswith("commit:game/")}
+
+    def test_git_history_gives_commits_with_branch_and_month_buckets(self):
+        self.repo()
+        files, commits = self.commits()
+        self.assertEqual(sorted(commits), ["First step", "Side cleanup"])
+        self.assertEqual(commits["First step"]["text"], "Why it was done.")
+        self.assertEqual((commits["First step"]["merged"], commits["First step"].get("branch")), (True, None))
+        self.assertEqual((commits["Side cleanup"]["merged"], commits["Side cleanup"]["branch"]), (False, "side"))
+        self.assertEqual(sorted(path for path in files if path.startswith("git:game/")), ["git:game/2026-10", "git:game/2026-11"])
+        self.assertEqual(len(commits["First step"]["id"]), len("commit:game/") + 7)
+
+    def test_a_new_commit_changes_only_its_month_and_merging_marks_it(self):
+        run = self.repo()
+        before, _ = self.commits()
+        write(self.game / "more.txt", "x")
+        run("add", "more.txt")
+        run("commit", "-q", "-m", "Later", GIT_AUTHOR_DATE="2026-10-20T10:00:00", GIT_COMMITTER_DATE="2026-10-20T10:00:00")
+        after, _ = self.commits()
+        self.assertEqual([path for path in after if path.startswith("git:") and after[path]["hash"] != before.get(path, {}).get("hash")],
+                         ["git:game/2026-10"])
+        run("merge", "-q", "--no-edit", "side")
+        _, commits = self.commits()
+        self.assertTrue(commits["Side cleanup"]["merged"])
+
+    def test_history_can_be_limited_or_off_and_bad_settings_fall_back(self):
+        self.repo()
+        self.config["apps"][1]["history"] = {"max": 1}
+        self.assertEqual(sorted(self.commits()[1]), ["Side cleanup"])
+        self.config["apps"][1]["history"] = {"max": [1], "since": ["x"]}
+        self.assertEqual(sorted(self.commits()[1]), ["First step", "Side cleanup"])
+        self.config["apps"][1]["history"] = {"max": 2147483648, "since": "nonsense"}
+        files, commits = self.commits()
+        self.assertEqual(sorted(commits), ["First step", "Side cleanup"])
+        self.assertNotIn("git:game", files)
+        self.config["apps"][1]["history"] = {"since": "2026-11-01"}
+        self.assertEqual(sorted(self.commits()[1]), ["Side cleanup"])
+        self.config["apps"][1]["history"] = False
+        self.assertEqual(self.commits()[1], {})
+
+    def test_a_failed_read_gives_the_last_good_history(self):
+        self.repo()
+        good, commits = self.commits()
+        self.assertEqual(len(commits), 2)
+        failures = (subprocess.TimeoutExpired("git", 5), subprocess.CalledProcessError(128, "git", b"", b"fatal: bad object"))
+        for failure in failures:
+            with mock.patch.object(registry_scan.subprocess, "run", side_effect=failure):
+                files, commits = self.commits()
+            self.assertEqual(sorted(commits), ["First step", "Side cleanup"])
+            self.assertEqual({path: entry["hash"] for path, entry in files.items() if path.startswith("git:game/")},
+                             {path: entry["hash"] for path, entry in good.items() if path.startswith("git:game/")})
+            self.assertIn("error", files["git:game"])
+        self.config["cache"] = str(Path(self.tmp.name) / "empty-cache")
+        with mock.patch.object(registry_scan.subprocess, "run", side_effect=failures[0]):
+            files, commits = self.commits()
+        self.assertEqual(commits, {})
+        self.assertIn("error", files["git:game"])
+
+    def test_history_shares_one_time_budget(self):
+        self.repo()
+        with mock.patch.object(registry_scan, "GIT_BUDGET", 0):
+            files, commits = self.commits()
+        self.assertEqual(commits, {})
+        self.assertIn("TimeoutExpired", files["git:game"]["error"])
+
+    def test_a_broken_origin_head_uses_the_last_good_read(self):
+        self.repo()
+        good, _ = self.commits()
+        real = subprocess.run
+
+        def broken(command, *args, **kwargs):
+            if "symbolic-ref" in command:
+                raise subprocess.CalledProcessError(128, command, b"", b"fatal: bad ref")
+            return real(command, *args, **kwargs)
+
+        with mock.patch.object(registry_scan.subprocess, "run", side_effect=broken):
+            files, commits = self.commits()
+        self.assertIn("error", files["git:game"])
+        self.assertEqual(len(commits), 2)
+
+    def test_history_is_read_as_utf8_whatever_the_repository_says(self):
+        run = self.repo()
+        run("config", "i18n.logOutputEncoding", "UTF-16")
+        _, commits = self.commits()
+        self.assertEqual(sorted(commits), ["First step", "Side cleanup"])
+
+    def test_credit_files_and_history_share_one_budget(self):
+        self.repo()
+        calls = []
+        real = subprocess.run
+
+        def slow(command, *args, **kwargs):
+            calls.append(kwargs.get("timeout"))
+            return real(command, *args, **kwargs)
+
+        with mock.patch.object(registry_scan.subprocess, "run", side_effect=slow), \
+                mock.patch.object(registry_scan.time, "monotonic", side_effect=[0.0] + [1.5] * 3 + [2.5] * 20):
+            files, _ = self.commits()
+        self.assertTrue(calls and all(timeout <= 2.0 for timeout in calls))
+        self.assertIn("TimeoutExpired", files["git:game"]["error"])
+
+    def test_a_commit_body_with_control_characters_is_kept(self):
+        run = self.repo()
+        write(self.game / "odd.txt", "x")
+        run("add", "odd.txt")
+        run("commit", "-q", "-m", "Odd body\n\nA\x1fB\x1eC")
+        _, commits = self.commits()
+        self.assertEqual(commits["Odd body"]["text"], "A\x1fB\x1eC")
+
+    def test_records_name_commits_by_the_same_short_id(self):
+        write(self.shop / ".harness" / "records" / "2026-11-19-long.md",
+              "---\nid: 2026-11-19-long\ntitle: Long ids\ncommits: \"68d54612, abc1234\"\n---\nText\n")
+        _, nodes, links = self.facts()
+        self.assertIn(("record:shop/2026-11-19-long", "PRODUCED", "commit:shop/68d5461"), links)
+        self.assertIn("commit:shop/abc1234", nodes)
 
     def test_working_file_without_sessions_states_nothing(self):
         write(self.game / "WORKING.md", "free text\n\n## Lane 1\n\n- build: work\n")

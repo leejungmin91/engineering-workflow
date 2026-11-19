@@ -25,7 +25,7 @@ The registry answers questions that span many projects: which skill fits this pr
 | Task | One unit of planned work | `.harness/board.json` |
 | Decision | Something the user decided or is asked to decide | Board decisions, work records |
 | Record | What was done for one task and why | `.harness/records/*.md` |
-| Commit | One commit | Git, through the record that names it |
+| Commit | One commit, with its subject, body, date, and branch when it is not merged | The app's git history, and records that name it |
 | Asset | An image, model, sound, or other produced file | `.harness/assets/*.md`, and the rows of tracked `CREDITS.md` files |
 | Source | Where an asset came from, by host | Asset records, credit files |
 | License | A license with what it asks of the user (`no`, `credit`, `notice`, `check`) | Credit files |
@@ -56,7 +56,8 @@ The registry answers questions that span many projects: which skill fits this pr
 | Record | IN | App | The record's repository |
 | Record | USED | Skill | Record frontmatter `skills` |
 | Record | RAN_ON | Model | Record frontmatter `model` |
-| Record | PRODUCED | Commit | Record frontmatter `commits` |
+| Record | PRODUCED | Commit | Record frontmatter `commits`, cut to 7 characters so it meets the commit from git |
+| Commit | IN | App | The app's git history |
 | Record | CONCERNS | Skill or Tool | Record frontmatter `concerns` |
 | Commit | REVIEWED_BY | Model | Record frontmatter `review` |
 | Asset | IN | App | The asset record's repository |
@@ -142,11 +143,18 @@ python3 scripts/registry_scan.py /absolute/path/to/registry.json --out /absolute
   "user": "/absolute/path/to/.claude",
   "plugins": ["/absolute/path/to/a/plugin"],
   "glossary": "/absolute/path/to/glossary.txt",
-  "machine": "laptop"
+  "machine": "laptop",
+  "cache": "/absolute/path/to/a/cache/folder"
 }
 ```
 
+Per app, optional: `"history": {"max": 3000, "since": "2026-01-01"}` or `false`, `"ignore": ["build/*"]` for credit files, and `"machine"`.
+
 `WORKING.md` is read loosely. Under `## Sessions`, a bullet shaped `- name: text` is a session, and a `session_id=` in it is kept. Other bullets there are added to the text of every session they name. Under `## Lane <n> ...`, a bullet that starts with a session name is that session's work. Anything else is skipped, never an error.
+
+The git history of each app is read with `git log --branches --no-merges` (no locks are taken), newest first, up to `history.max` commits (default 3000) and from `history.since` when set; `"history": false` turns it off for that app. A commit not reachable from `origin/HEAD` (else `HEAD`) gets `merged: false` and the branch it is on. Commits are grouped by month into entries named `git:<app>/<YYYY-MM>`, so a new commit rewrites one month and a merge rewrites the months of the merged branch. Trailers such as `Co-Authored-By` are dropped and bodies are cut to 1500 characters. A folder without `.git` has no history. All git calls of one scan share a 2 second budget. Each good read is saved on this machine (config `cache`, default `~/.cache/engineering-workflow/registry-history/`), and when git fails or runs out of time the scan uses the last good read and reports `git:<app>` as skipped.
+
+Every file hash includes the scanner's own hash, so after an upgrade every file is read again once.
 
 Credit files are the `CREDITS.md` files git tracks in an app, minus those under a folder whose name starts with a dot and those matching the app's `ignore` globs (`"ignore": ["build/*"]`). Each table row and each ``- `file`: text`` bullet names one or more files in backticks; each becomes an asset in a group named after the credit file's folder. The license comes from the row's license column, else from the license the file's first paragraph names. A row with neither has no license and reads as `check`. Licenses are recognised by name: CC0 and public domain (`no`), CC BY in any form (`credit`), OFL, Apache, and MIT (`notice`).
 
