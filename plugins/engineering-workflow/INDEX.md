@@ -29,9 +29,12 @@
 | 스크립트 | 용도 |
 | --- | --- |
 | `scripts/hooks/auto_commit_push.sh` | `Stop` 훅 본체. POSIX `sh`로 돌며 `--dry-run`을 지원한다. 변경에 새 작업 기록이 있으면 그 제목을 커밋 제목으로 쓴다 |
-| `skills/engineering-workflow/scripts/board.py` | 진행 보드. `.harness/board.json`을 읽어 진행률·작업 목록·결정 대기를 로컬 HTML 한 장으로 그린다. 훅 본체를 겸한다 (`references/board.md`) |
-| `skills/engineering-workflow/scripts/registry_scan.py` | 등록부 훑기. 스킬·플러그인·훅·설정·보드·작업 기록·에셋 기록·규칙 제목·용어 사전을 읽어 파일별 점과 선, 해시로 출력한다. DB 없이 돈다 (`docs/registry-design.md`) |
-| `skills/engineering-workflow/scripts/registry.py` | 등록부 조회 명령: `find`·`dupes`·`neighbors`·`impact`·`spread`·`lineage`·`needs`·`latest`·`unused`·`status`·`sync`. 조회 전에 바뀐 파일만 다시 색인한다. 선택 사항이며 로컬 Neo4j가 필요하다 (`references/registry.md`) |
+| `skills/engineering-workflow/scripts/board.py` | 진행 보드. `.harness/board.json`을 읽어 사용자가 할 일(그림이 달린 결정, 막힌 작업), 지금 하는 일과 다음 차례, 상태별 작업을 로컬 HTML 한 장으로 그린다. 전체 보드도 쓴다. 훅 본체를 겸한다 (`references/board.md`) |
+| `skills/engineering-workflow/scripts/run_queue.py` | 작업마다 새 세션. 준비된 작업마다 새 에이전트 세션을 띄우고 결과를 직접 확인한 뒤에만 다음으로 간다 (`references/run-queue.md`) |
+| `skills/engineering-workflow/scripts/registry_scan.py` | 등록부 훑기. 스킬·플러그인·훅·설정·보드·작업 기록·에셋 기록·규칙 제목·용어 사전, `WORKING.md`의 세션, `CREDITS.md`, Git 기록, 스킬 사용 횟수를 읽어 파일별 점과 선, 해시로 출력한다. DB 없이 돈다 (`docs/registry-design.md`) |
+| `skills/engineering-workflow/scripts/registry.py` | 등록부 조회 명령: `find`·`dupes`·`neighbors`·`impact`·`spread`·`lineage`·`needs`·`latest`·`unused`·`sessions`·`licenses`·`status`·`sync`. 조회 전에 바뀐 파일만 다시 색인한다. 선택 사항이며 로컬 Neo4j가 필요하다 (`references/registry.md`) |
+| `skills/engineering-workflow/scripts/registry_view.py` | 등록부 화면. 그래프, 점 종류, 프롬프트 훅의 판단 기록, 모델 선정과 사용, 그래프 서버 접속 방법을 `registry.html` 한 장으로 그린다. 비밀번호는 넣지 않는다 (`references/registry.md`) |
+| `skills/engineering-workflow/scripts/registry_usage.py` | 스킬 사용 횟수. 이 기기의 Claude·Codex 세션 로그에서 도구 호출만 읽어 앱·스킬·에이전트별 세션 수를 센다. 프롬프트 글은 남기지 않는다 |
 | `skills/engineering-workflow/scripts/registry_neo4j.py` | 등록부 저장소 연결. 표준 라이브러리로 Neo4j HTTP 질의 API를 쓴다. 주소와 암호는 환경 변수나 키체인에서 읽는다 |
 | `skills/engineering-workflow/scripts/registry_hook.py` | 등록부 프롬프트 훅 본체. 판단 단계는 `HARNESS_REGISTRY_JUDGE`로 바꿔 끼울 수 있다 (`references/registry.md`) |
 | `skills/engineering-workflow/scripts/registry_judge_jev.py` | 등록부 훅의 판단 단계를 TypeSafe Jev에 맡기는 연결. `HARNESS_REGISTRY_JUDGE=jev`일 때만 쓰이고, 프롬프트와 후보 설명을 외부로 보낸다 |

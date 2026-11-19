@@ -40,6 +40,21 @@ Independent review checks the diff and evidence when requested or when shared co
 
 The plugin installs three hooks. When the assistant finishes a turn, the work left in the repository is committed and pushed. With a [registry](plugins/engineering-workflow/skills/engineering-workflow/references/registry.md) configured, a prompt gets up to three matching skills, rules, or earlier work records attached. In a project with a board file, a local HTML [progress board](plugins/engineering-workflow/skills/engineering-workflow/references/board.md) opens at the start of a session and redraws as tasks change. This harness is for personal projects, so finished work is never held back waiting for a commit request. See [Hooks](#hooks). Slack and Discord MCP can provide task context and stay optional. See the [skill index guide](plugins/engineering-workflow/skills/engineering-workflow/references/skill-index.md) and [MCP setup](docs/mcp-setup.md).
 
+## What's included
+
+Besides the workflow rules, the plugin carries small tools that keep their state in files, so any session (or a new one) can pick up the work. Each is optional and works alone.
+
+| Tool | What it gives you | Guide |
+| --- | --- | --- |
+| Progress board (`board.py`) | A local page per project from `.harness/board.json`: what needs you first (decisions, with their pictures, and blocked tasks), what is in progress and next, tasks by state. An overview lists every board, the ones that need you first. | [board.md](plugins/engineering-workflow/skills/engineering-workflow/references/board.md) |
+| Work records (`record.py`) | One small file per finished task; its title becomes the commit subject. | [records.md](plugins/engineering-workflow/skills/engineering-workflow/references/records.md) |
+| One task per fresh session (`run_queue.py`) | Starts a new agent session for each ready task and checks its result itself (task done, commit on the remote, record, nothing left over) before the next, so no session's context fills up. | [run-queue.md](plugins/engineering-workflow/skills/engineering-workflow/references/run-queue.md) |
+| App template and drift (`app_template.py`) | New apps start from one template; `drift` lists apps whose shared rules differ from it. | [app-template.md](plugins/engineering-workflow/skills/engineering-workflow/references/app-template.md) |
+| Registry (`registry.py`, Neo4j, optional) | Questions across many apps in one command: which skill fits, what a change affects, earlier work, asset licenses, which sessions hold what. It reads the harness files, `WORKING.md`, `CREDITS.md`, Git history, and which skills sessions really used. | [registry.md](plugins/engineering-workflow/skills/engineering-workflow/references/registry.md) |
+| Registry page (`registry_view.py`) | One page beside the boards: the graph, node types, the prompt hook's judge decisions, how models are chosen and used, and how to reach the graph server. | [registry.md](plugins/engineering-workflow/skills/engineering-workflow/references/registry.md#registry-page) |
+| Korean copy (`korean-copy` skill) | A style sheet and correction log per app, and a check that fails on mixed speech levels, avoided words, and earlier corrections. | [korean-copy](plugins/engineering-workflow/skills/korean-copy/SKILL.md) |
+| Game development (`game-dev` skill) | Balance, asset and performance budgets, playtests, art and sound review, Unity and Blender from the agent. | [game-dev](plugins/engineering-workflow/skills/game-dev/SKILL.md) |
+
 ## Install
 
 ### Codex CLI and desktop app
@@ -95,7 +110,7 @@ When several sessions share one repository, `WORKING.md` with a `## Lane 1` sect
 Requirements and limits:
 
 - POSIX `sh` and `git` on PATH (Git for Windows provides both). `auto_commit_push` needs no Python. The `board` hook needs `python3` and is skipped without it.
-- Everything not ignored by `.gitignore` is committed, including half-finished edits left at the end of a turn. Secrets are not scanned; keep `.gitignore`, host permissions, and branch protection for that.
+- Everything not ignored by `.gitignore` is committed, including half-finished edits left at the end of a turn and files a command wrote into the worktree by mistake. Check `git status` before a turn ends after running tools that write output. The leak check below stops secrets, not other private content; keep `.gitignore`, host permissions, and branch protection for the rest.
 - To stop the hooks, disable or uninstall the plugin. That also turns off the skill.
 
 The hook tests live in [`tools/hook_tests`](tools/hook_tests) and run with `python -m unittest discover -s tools/hook_tests`. They create throwaway Git repositories with a bare remote and run the hook against them.

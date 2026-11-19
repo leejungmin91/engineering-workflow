@@ -42,6 +42,21 @@ flowchart TB
 
 플러그인을 설치하면 훅 세 개가 함께 등록됩니다. 어시스턴트가 턴을 마치면 저장소에 남은 변경을 커밋하고 푸시합니다. [등록부](plugins/engineering-workflow/skills/engineering-workflow/references/registry.md)를 설정하면 프롬프트에 맞는 스킬·규칙·이전 작업 기록을 3개 이내로 붙여 줍니다. 보드 파일이 있는 프로젝트에서는 세션을 시작할 때 로컬 HTML [진행 보드](plugins/engineering-workflow/skills/engineering-workflow/references/board.md)를 띄우고, 작업 상태가 바뀌면 다시 그립니다. 이 하네스는 개인 프로젝트용이라, 끝난 작업을 커밋 요청이 올 때까지 붙들어 두지 않습니다. [훅](#훅) 절을 보세요. Slack·Discord MCP는 필요할 때 관련 맥락을 읽는 선택 사항입니다. [스킬 인덱스 안내](plugins/engineering-workflow/skills/engineering-workflow/references/skill-index.md) · [MCP 연동](docs/mcp-setup.md)
 
+## 들어 있는 것
+
+작업 규칙 말고도, 상태를 파일에 남기는 작은 도구들이 함께 들어 있습니다. 그래서 어느 세션이든, 새 세션이든 작업을 이어받을 수 있습니다. 모두 선택 사항이고 하나만 써도 됩니다.
+
+| 도구 | 하는 일 | 안내 |
+| --- | --- | --- |
+| 진행 보드(`board.py`) | `.harness/board.json`으로 프로젝트마다 로컬 화면 한 장을 그립니다. 사용자가 할 일(그림이 달린 결정, 막힌 작업)을 먼저 보이고, 지금 하는 일과 다음 차례, 상태별 작업을 보입니다. 전체 보드는 사용자가 필요한 보드를 위에 둡니다. | [board.md](plugins/engineering-workflow/skills/engineering-workflow/references/board.md) |
+| 작업 기록(`record.py`) | 끝난 작업마다 작은 파일 하나를 남깁니다. 제목이 커밋 제목이 됩니다. | [records.md](plugins/engineering-workflow/skills/engineering-workflow/references/records.md) |
+| 작업마다 새 세션(`run_queue.py`) | 준비된 작업마다 새 에이전트 세션을 띄웁니다. 끝남 표시, 원격의 커밋, 작업 기록, 남은 변경이 없는지를 직접 확인한 뒤에만 다음 작업으로 가서, 한 세션의 컨텍스트가 차지 않습니다. | [run-queue.md](plugins/engineering-workflow/skills/engineering-workflow/references/run-queue.md) |
+| 새 앱 틀과 어긋남(`app_template.py`) | 새 앱은 틀 하나에서 시작합니다. `drift`는 공통 규칙이 틀과 달라진 앱을 나열합니다. | [app-template.md](plugins/engineering-workflow/skills/engineering-workflow/references/app-template.md) |
+| 등록부(`registry.py`, Neo4j, 선택) | 여러 앱에 걸친 질문에 명령 하나로 답합니다. 맞는 스킬, 변경의 영향, 지난 작업, 에셋 라이선스, 세션이 맡은 일을 찾습니다. 하네스 파일, `WORKING.md`, `CREDITS.md`, Git 기록, 세션이 실제로 쓴 스킬을 읽습니다. | [registry.md](plugins/engineering-workflow/skills/engineering-workflow/references/registry.md) |
+| 등록부 화면(`registry_view.py`) | 보드 옆의 화면 한 장입니다. 그래프, 점 종류, 프롬프트 훅의 판단 기록, 모델을 고르는 방식과 실제 사용, 그래프 서버 접속 방법을 보입니다. | [registry.md](plugins/engineering-workflow/skills/engineering-workflow/references/registry.md#registry-page) |
+| 한국어 문구(`korean-copy` 스킬) | 앱마다 문체 기준과 교정 기록을 두고, 섞인 말투, 피할 낱말, 이전 교정이 돌아오면 실패하는 검사를 돌립니다. | [korean-copy](plugins/engineering-workflow/skills/korean-copy/SKILL.md) |
+| 게임 개발(`game-dev` 스킬) | 밸런스, 에셋과 성능 예산, 플레이 시험, 아트와 소리 검토, 에이전트에서 Unity와 Blender 다루기를 돕습니다. | [game-dev](plugins/engineering-workflow/skills/game-dev/SKILL.md) |
+
 ## 설치
 
 ### Codex CLI와 데스크톱 앱
@@ -95,7 +110,7 @@ claude plugin install engineering-workflow@engineering-workflow
 필요한 것과 한계:
 
 - PATH에 POSIX `sh`와 `git`이 있어야 합니다(Git for Windows에 둘 다 포함). `auto_commit_push`에는 Python이 필요하지 않습니다. `board` 훅은 `python3`가 필요하고, 없으면 건너뜁니다.
-- `.gitignore`가 제외하지 않은 것은 턴 끝에 남은 미완성 수정까지 모두 커밋됩니다. 비밀 값은 검사하지 않으므로 `.gitignore`, 호스트 권한, 브랜치 보호 규칙으로 막습니다.
+- `.gitignore`가 제외하지 않은 것은 턴 끝에 남은 미완성 수정과, 명령이 실수로 작업 트리에 쓴 파일까지 모두 커밋됩니다. 결과 파일을 쓰는 도구를 돌린 뒤에는 턴이 끝나기 전에 `git status`를 확인합니다. 아래 유출 검사는 비밀값만 막고 다른 비공개 내용은 막지 않으므로, 나머지는 `.gitignore`, 호스트 권한, 브랜치 보호 규칙으로 막습니다.
 - 훅을 끄려면 플러그인을 끄거나 지워야 하며, 그러면 스킬도 함께 꺼집니다.
 
 훅 시험은 [`tools/hook_tests`](tools/hook_tests)에 있고 `python -m unittest discover -s tools/hook_tests`로 실행합니다. 임시 Git 저장소와 bare 원격을 만들어 훅을 실제로 돌려 봅니다.
