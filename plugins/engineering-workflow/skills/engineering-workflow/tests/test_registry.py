@@ -66,8 +66,13 @@ class OfflineTests(unittest.TestCase):
         props, kinds, sources = graph.stated(files)
         self.assertEqual(props["skill:x"], {"name": "x", "text": "from b", "model": "m"})
         self.assertEqual(sources["skill:x"], ["a.md", "b.md"])
-        korean = {"k.md": {"nodes": [{"id": "skill:k", "type": "skill", "name": "k", "text": "훅을 고친다", "keywords": "앱에서"}]}}
-        self.assertEqual(graph.stated(korean)[0]["skill:k"]["terms"].split(), ["훅", "앱"])
+        rows = [{"id": "skill:k", "props": {"name": "k", "text": "훅을 고친다", "keywords": "앱에서"}},
+                {"id": "skill:e", "props": {"name": "e", "text": "English only"}}]
+        with mock.patch.dict(os.environ):
+            os.environ.pop("HARNESS_TOKENIZER_URL", None)
+            graph.add_terms(rows)
+        self.assertEqual(rows[0]["props"]["terms"].split(), ["훅", "앱"])
+        self.assertNotIn("terms", rows[1]["props"])
 
     def test_unreachable_server_exits_2_without_a_traceback(self):
         errors = io.StringIO()

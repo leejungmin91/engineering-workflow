@@ -116,6 +116,25 @@ Text search uses the server's `cjk` analyzer, which matches Korean, Japanese, an
 
 A skill can list words nobody would guess from its description under `metadata.keywords`. The original words of a query weigh three times as much as the added forms. A query uses at most 24 words.
 
+### Optional analyzer for Korean
+
+The rules above miss one-syllable nouns written without a space, such as `창돌을` for 창 and 돌. On 2,500 real Korean commit messages and document sections, a one-syllable noun query found 24% of the records that contain the noun with the rules and 95% with the Kiwi analyzer, where "contains" is judged by Kiwi itself. Nouns of two or more syllables went from 90% to 98%. Add the analyzer before indexing Korean work records.
+
+`scripts/registry_kiwi_server.py` serves Kiwi's nouns on `127.0.0.1` only. It needs the `kiwipiepy` package (Apache-2.0, about 170 MB with its model), which may need an older Python than the one that runs the registry, so give it its own environment:
+
+```sh
+python3.13 -m venv /absolute/path/to/kiwi-venv
+/absolute/path/to/kiwi-venv/bin/pip install kiwipiepy
+/absolute/path/to/kiwi-venv/bin/python scripts/registry_kiwi_server.py --port 8792
+export HARNESS_TOKENIZER_URL=http://127.0.0.1:8792
+python3 scripts/registry.py sync --rebuild
+```
+
+- With the variable set and the service answering, its nouns replace the rule stems at index and query time. When it is down or slow, the rules are used and nothing fails. A prompt lookup waits at most half a second for it.
+- Rebuild after switching the analyzer on or off, because index terms are written when a file is loaded.
+- The address must be `http` on this machine. Text is never sent to another host, redirects are refused, and proxies are bypassed.
+- The service refuses requests that carry an `Origin` header or another host name, so a web page cannot use it.
+
 This is word matching, not meaning. Two phrasings with no word in common do not find each other. Add the missing word to the glossary or to a skill's keywords when a search misses.
 
 The store tests need a server and run with `HARNESS_NEO4J_TEST=1`. They write under their own label and leave the real graph alone. CI runs only the tests that need no server.

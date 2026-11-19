@@ -1,4 +1,8 @@
+import json
+import os
 import re
+import urllib.parse
+import urllib.request
 
 HANGUL = re.compile(r"[가-힣]+")
 WORD = re.compile(r"[가-힣]+|[A-Za-z0-9][A-Za-z0-9_.+#-]*")
@@ -6,6 +10,9 @@ MAX_WORDS = 24
 MAX_WORD = 40
 MAX_FORMS = 120
 MAX_TEXT = 20000
+MAX_BATCH = 4000
+MAX_REPLY = 20_000_000
+LOCAL = ("127.0.0.1", "localhost", "::1")
 ENDINGS = sorted((
     "에서는", "에서도", "으로는", "으로도", "에게서", "이라는", "이라고", "입니다", "습니다", "합니다", "했었던", "했습니다",
     "에서", "으로", "에게", "까지", "부터", "처럼", "보다", "이나", "이랑", "하고", "했던", "하는", "하기", "해서", "했다",
@@ -48,7 +55,36 @@ def variants(word):
     return [word] + stems(word)
 
 
-def index_terms(text, limit=400):
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+def analyzer_nouns(texts, seconds):
+    address = os.environ.get("HARNESS_TOKENIZER_URL")
+    if not address or not texts:
+        return None
+    try:
+        parts = urllib.parse.urlsplit(address)
+        if parts.scheme != "http" or parts.hostname not in LOCAL:
+            return None
+        body = json.dumps({"texts": [str(text or "")[:MAX_TEXT] for text in texts[:MAX_BATCH]]}).encode("utf-8")
+        request = urllib.request.Request(address.rstrip("/") + "/nouns", data=body, method="POST",
+                                         headers={"Content-Type": "application/json"})
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect)
+        with opener.open(request, timeout=seconds) as response:
+            raw = response.read(MAX_REPLY)
+        nouns = json.loads(raw).get("nouns")
+    except (OSError, ValueError, AttributeError, RecursionError):
+        return None
+    if not isinstance(nouns, list) or len(nouns) != min(len(texts), MAX_BATCH):
+        return None
+    if not all(isinstance(row, list) and all(isinstance(item, str) for item in row) for row in nouns):
+        return None
+    return [[item for item in row if 0 < len(item) <= MAX_WORD] for row in nouns]
+
+
+def rule_terms(text, limit):
     seen = {}
     for match in HANGUL.finditer((text or "")[:MAX_TEXT]):
         word = match.group()
@@ -57,8 +93,24 @@ def index_terms(text, limit=400):
         for stem in stems(word):
             seen.setdefault(stem)
             if len(seen) >= limit:
-                return " ".join(seen)
-    return " ".join(seen)
+                return list(seen)
+    return list(seen)
+
+
+def index_terms_many(texts, limit=400, seconds=30):
+    analyzed = analyzer_nouns(texts, seconds)
+    result = []
+    for position, text in enumerate(texts):
+        if analyzed is not None and position < len(analyzed):
+            seen = dict.fromkeys(noun for noun in analyzed[position] if HANGUL.search(noun))
+        else:
+            seen = dict.fromkeys(rule_terms(text, limit))
+        result.append(" ".join(list(seen)[:limit]))
+    return result
+
+
+def index_terms(text, limit=400):
+    return index_terms_many([text], limit)[0]
 
 
 def plural(word):
@@ -97,9 +149,15 @@ def expand(words, extra=None):
         if item.isalpha() and item.islower() and len(item) > 2:
             add(plural(item))
 
-    for raw in query_words(words):
+    asked = query_words(words)
+    analyzed = analyzer_nouns([" ".join(asked)], 0.5) if any(HANGUL.search(word) for word in asked) else None
+    for noun in (analyzed[0] if analyzed else []):
+        add(noun)
+        for english in table.get(noun, "").split():
+            add_english(english)
+    for raw in asked:
         for word in WORD.findall(raw):
-            for form in variants(word):
+            for form in ([word] if analyzed else variants(word)):
                 add(form)
                 for english in table.get(form, "").split():
                     add_english(english)

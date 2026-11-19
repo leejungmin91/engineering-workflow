@@ -137,11 +137,14 @@ def stated(files):
             props.setdefault(item["id"], {}).update(flat(item))
             kinds[item["id"]] = item["type"]
             sources.setdefault(item["id"], []).append(path)
-    for values in props.values():
-        terms = registry_text.index_terms(" ".join(str(values.get(key, "")) for key in ("name", "text", "keywords")))
-        if terms:
-            values["terms"] = terms
     return props, kinds, sources
+
+
+def add_terms(rows):
+    texts = [" ".join(str(row["props"].get(key, "")) for key in ("name", "text", "keywords")) for row in rows]
+    for row, terms in zip(rows, registry_text.index_terms_many(texts)):
+        if terms:
+            row["props"]["terms"] = terms
 
 
 def rewrite_nodes(store, files, paths):
@@ -153,6 +156,7 @@ def rewrite_nodes(store, files, paths):
     by_type = {}
     for key in sorted(touched & set(props)):
         by_type.setdefault(kinds[key], []).append({"id": key, "props": props[key], "srcs": sources[key]})
+    add_terms([row for rows in by_type.values() for row in rows])
     for kind, rows in by_type.items():
         store.run(f"UNWIND $rows AS row MERGE (n:{n} {{id: row.id}}) SET n = row.props, n:{label(kind)}, "
                   "n.id = row.id, n.type = $kind, n.srcs = row.srcs", rows=rows, kind=kind)

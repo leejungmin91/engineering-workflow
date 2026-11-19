@@ -34,7 +34,8 @@
 | `skills/engineering-workflow/scripts/registry_neo4j.py` | 등록부 저장소 연결. 표준 라이브러리로 Neo4j HTTP 질의 API를 쓴다. 주소와 암호는 환경 변수나 키체인에서 읽는다 |
 | `skills/engineering-workflow/scripts/registry_hook.py` | 등록부 프롬프트 훅 본체. 판단 단계는 `HARNESS_REGISTRY_JUDGE`로 바꿔 끼울 수 있다 (`references/registry.md`) |
 | `skills/engineering-workflow/scripts/registry_judge_jev.py` | 등록부 훅의 판단 단계를 TypeSafe Jev에 맡기는 연결. `HARNESS_REGISTRY_JUDGE=jev`일 때만 쓰이고, 프롬프트와 후보 설명을 외부로 보낸다 |
-| `skills/engineering-workflow/scripts/registry_text.py` | 등록부의 한국어 처리. 조사·어미 떼기, 한영 낱말표, 색인용 어간 |
+| `skills/engineering-workflow/scripts/registry_text.py` | 등록부의 한국어 처리. 조사·어미 떼기, 한영 낱말표, 색인용 어간. 분석기 서비스가 있으면 그 명사를 쓴다 |
+| `skills/engineering-workflow/scripts/registry_kiwi_server.py` | 선택 사항. Kiwi 형태소 분석기의 명사를 이 기기에서만 내주는 작은 서비스 (`kiwipiepy` 필요) |
 | `skills/engineering-workflow/scripts/check_record.py` | 완료 기록의 검사 결과·작업본·의존성을 검사한다 |
 | `skills/engineering-workflow/scripts/lane_guard.py` | 선택형 `PreToolUse` 훅. 구현 담당 세션만 지키는 경로를 고치게 하고 전부 스테이징을 막는다 (프로젝트에 복사해서 등록, `references/multi-session.md`) |
 | `skills/engineering-workflow/templates/multi-session/WORKING.md` | 세션 역할, 구현 담당, 사용자 결정 대기 목록을 적는 틀 |

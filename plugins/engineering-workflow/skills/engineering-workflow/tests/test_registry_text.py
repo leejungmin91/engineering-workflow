@@ -1,13 +1,122 @@
+import json
+import os
 import sys
+import threading
 import unittest
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 import registry_text
 
 
+class Analyzer(BaseHTTPRequestHandler):
+    seen = []
+    reply = None
+    status = 200
+    raw = None
+
+    def do_GET(self):
+        Analyzer.seen.append((self.path, None))
+        self.send_response(200)
+        self.send_header("Content-Length", "13")
+        self.end_headers()
+        self.wfile.write(b'{"nouns": []}')
+
+    def do_POST(self):
+        texts = json.loads(self.rfile.read(int(self.headers["Content-Length"])))["texts"]
+        Analyzer.seen.append((self.path, texts))
+        nouns = Analyzer.reply if Analyzer.reply is not None else [["창", "돌"] if "창" in text else [] for text in texts]
+        body = json.dumps({"nouns": nouns}).encode("utf-8")
+        if Analyzer.raw is not None:
+            body = Analyzer.raw
+        self.send_response(Analyzer.status)
+        if Analyzer.status == 302:
+            self.send_header("Location", f"http://127.0.0.1:{self.server.server_address[1]}/elsewhere")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *args):
+        return
+
+
+class AnalyzerTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.server = HTTPServer(("127.0.0.1", 0), Analyzer)
+        threading.Thread(target=cls.server.serve_forever, daemon=True).start()
+        cls.address = f"http://127.0.0.1:{cls.server.server_address[1]}"
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.shutdown()
+        cls.server.server_close()
+
+    def setUp(self):
+        Analyzer.seen, Analyzer.reply, Analyzer.status, Analyzer.raw = [], None, 200, None
+        patch = mock.patch.dict(os.environ, {"HARNESS_TOKENIZER_URL": self.address})
+        patch.start()
+        self.addCleanup(patch.stop)
+
+    def test_analyzer_nouns_replace_the_rule_stems_in_one_request(self):
+        terms = registry_text.index_terms_many(["창돌을 깎는다", "English only", "훅을 고친다"])
+        self.assertEqual(terms[0].split(), ["창", "돌"])
+        self.assertEqual(terms[1], "")
+        self.assertEqual(terms[2], "")
+        self.assertEqual(len(Analyzer.seen), 1)
+        self.assertEqual(Analyzer.seen[0][0], "/nouns")
+
+    def test_query_gets_analyzer_nouns_and_their_english_forms(self):
+        Analyzer.reply = [["창", "게임"]]
+        words = registry_text.expand(["창게임에서"])
+        for expected in ("창게임에서", "창", "게임", "game"):
+            self.assertIn(expected, words)
+        self.assertNotIn("창게임", words)
+        Analyzer.seen = []
+        registry_text.expand(["plain", "english"])
+        self.assertEqual(Analyzer.seen, [])
+
+    def test_rules_take_over_when_the_analyzer_fails_or_answers_oddly(self):
+        expected = registry_text.rule_terms("훅을 고친다", 400)
+        for reply, status in (([["x"], ["y"]], 200), ("nope", 200), ([[5, None, "가" * 500]], 200), ([["ok"]], 500)):
+            Analyzer.reply, Analyzer.status = reply, status
+            self.assertEqual(registry_text.index_terms("훅을 고친다").split(), expected)
+        with mock.patch.dict(os.environ, {"HARNESS_TOKENIZER_URL": "http://127.0.0.1:9"}):
+            self.assertEqual(registry_text.index_terms("훅을 고친다").split(), expected)
+            self.assertIn("훅", registry_text.expand(["훅을"]))
+
+    def test_redirects_bad_addresses_and_deep_or_huge_replies_fall_back_to_rules(self):
+        expected = registry_text.rule_terms("훅을 고친다", 400)
+        Analyzer.status = 302
+        self.assertEqual(registry_text.index_terms("훅을 고친다").split(), expected)
+        self.assertEqual([path for path, _ in Analyzer.seen], ["/nouns"])
+        Analyzer.status = 200
+        Analyzer.raw = b"[" * 200000
+        self.assertEqual(registry_text.index_terms("훅을 고친다").split(), expected)
+        with mock.patch.object(registry_text, "MAX_REPLY", 10):
+            Analyzer.raw = None
+            self.assertEqual(registry_text.index_terms("훅을 고친다").split(), expected)
+        with mock.patch.dict(os.environ, {"HARNESS_TOKENIZER_URL": "http://["}):
+            self.assertEqual(registry_text.index_terms("훅을 고친다").split(), expected)
+
+    def test_text_is_sent_only_to_this_machine(self):
+        port = self.server.server_address[1]
+        for address in (f"http://localhost.:{port}", f"https://127.0.0.1:{port}", "http://example.invalid", "nonsense"):
+            with mock.patch.dict(os.environ, {"HARNESS_TOKENIZER_URL": address}):
+                self.assertIsNone(registry_text.analyzer_nouns(["창"], 1))
+        self.assertEqual(Analyzer.seen, [])
+
+
 class TextTests(unittest.TestCase):
+    def setUp(self):
+        patch = mock.patch.dict(os.environ)
+        patch.start()
+        self.addCleanup(patch.stop)
+        os.environ.pop("HARNESS_TOKENIZER_URL", None)
+
     def test_particles_and_endings_are_removed(self):
         self.assertIn("훅", registry_text.stems("훅을"))
         self.assertIn("앱", registry_text.stems("앱에서는"))
