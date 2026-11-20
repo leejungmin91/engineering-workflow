@@ -543,25 +543,33 @@ class HookTests(Case):
         board.hook(self.event("PostToolUse", tool_input={"file_path": str(real / "board.json")}))
         self.assertEqual(len(self.pages()), 1)
 
-    def test_page_opens_on_the_first_render_and_when_a_task_starts_not_per_session(self):
+    def test_page_opens_only_when_a_task_starts_and_never_on_connecting(self):
         self.save([task("a"), task("b")])
         with mock.patch.object(board, "launch") as launch:
+            board.hook(self.event("PostToolUse", tool_input={"file_path": str(self.path)}))
             board.hook(self.event("SessionStart"))
-            self.assertEqual(launch.call_count, 1)
             for session in ("s2", "s1", "s3"):
                 board.hook(self.event("SessionStart", session_id=session))
                 board.hook(self.event("Stop", session_id=session))
-            self.assertEqual(launch.call_count, 1)
+            self.assertEqual(launch.call_count, 0)
+            self.save([task("a", "doing"), task("b")])
+            board.hook(self.event("SessionStart", session_id="s5"))
+            self.assertEqual(launch.call_count, 0)
             self.save([task("a", "doing"), task("b")])
             board.hook(self.event("PostToolUse", tool_input={"file_path": str(self.path)}))
-            self.assertEqual(launch.call_count, 2)
+            self.assertEqual(launch.call_count, 0)
+            self.save([task("a", "todo"), task("b")])
+            board.hook(self.event("Stop"))
+            self.save([task("a", "doing"), task("b")])
+            board.hook(self.event("PostToolUse", tool_input={"file_path": str(self.path)}))
+            self.assertEqual(launch.call_count, 1)
             board.hook(self.event("SessionStart", session_id="s4"))
-            self.assertEqual(launch.call_count, 2)
+            self.assertEqual(launch.call_count, 1)
             self.save([task("a", "done"), task("b")])
             board.hook(self.event("Stop"))
             self.save([task("a", "done"), task("b", "doing")])
             board.hook(self.event("Stop"))
-            self.assertEqual(launch.call_count, 3)
+            self.assertEqual(launch.call_count, 2)
 
     def test_an_old_session_list_marker_does_not_open_the_page_again(self):
         self.save([task("a", "doing")])

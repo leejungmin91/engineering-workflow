@@ -885,7 +885,7 @@ def launch(path):
         return
 
 
-def show_when_work_starts(path, root, doing):
+def show_when_work_starts(path, root, doing, open_page=True):
     marker = home() / f"{slug(root)}.opened"
     current = True
     try:
@@ -895,8 +895,8 @@ def show_when_work_starts(path, root, doing):
     except (OSError, ValueError, TypeError):
         current = False
         before = set(doing) if marker.exists() else None
-    opened = before is None or bool(set(doing) - before)
-    if opened:
+    opened = before is not None and bool(set(doing) - before)
+    if opened and open_page:
         launch(path)
     if before is None or not current or set(doing) != before:
         write(marker, json.dumps({"doing": sorted(doing)}, ensure_ascii=False))
@@ -945,7 +945,7 @@ def hook(event):
         doing = [task["id"] for task in load(board_path)["tasks"] if task["status"] == "doing"]
     except (OSError, ValueError, KeyError, TypeError):
         doing = []
-    show_when_work_starts(output, root, doing)
+    show_when_work_starts(output, root, doing, open_page=name != "SessionStart")
     if name == "SessionStart":
         return {"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": (
             f"Progress board: {BOARD.as_posix()} renders to {output}. Edit the JSON when a task changes state "
