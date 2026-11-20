@@ -18,6 +18,9 @@ FAKE = textwrap.dedent('''
     task = re.search(r"Task (\\S+):", prompt).group(1)
     mode = os.environ.get("FAKE_MODE", "ok")
     Path(".seen").write_text(Path("WORKING.md").read_text() if Path("WORKING.md").exists() else "", encoding="utf-8")
+    Path(".seen_board").write_text(Path(".harness/board.json").read_text(encoding="utf-8"), encoding="utf-8")
+    pages = Path(os.environ.get("HARNESS_BOARD_HOME", "/nonexistent"))
+    Path(".seen_html").write_text("".join(page.read_text(encoding="utf-8") for page in sorted(pages.rglob("*.html"))) if pages.is_dir() else "", encoding="utf-8")
     Path(".args").write_text(json.dumps(sys.argv[1:]), encoding="utf-8")
     if mode == "sleep":
         time.sleep(5)
@@ -69,7 +72,7 @@ class RunQueueTests(unittest.TestCase):
         self.root, remote = base / "app", base / "remote.git"
         env = {**os.environ, "GIT_AUTHOR_NAME": "a", "GIT_AUTHOR_EMAIL": "a@a", "GIT_COMMITTER_NAME": "a",
                "GIT_COMMITTER_EMAIL": "a@a"}
-        self.env = {**env, "HARNESS_RUN_LOGS": str(base / "logs")}
+        self.env = {**env, "HARNESS_RUN_LOGS": str(base / "logs"), "HARNESS_BOARD_HOME": str(base / "boards")}
         subprocess.run(["git", "init", "-q", "--bare", str(remote)], check=True)
         subprocess.run(["git", "init", "-q", "-b", "main", str(self.root)], check=True)
         (self.root / ".harness" / "records").mkdir(parents=True)
@@ -78,7 +81,7 @@ class RunQueueTests(unittest.TestCase):
                      "effort": "low"},
                     {"id": "T3", "title": "third", "status": "todo", "after": ["T9"]}])
         (self.root / "tracked.txt").write_text("x")
-        (self.root / ".gitignore").write_text(".seen\n.args\n")
+        (self.root / ".gitignore").write_text(".seen\n.seen_board\n.seen_html\n.args\n")
         self.git = lambda *a: subprocess.run(["git", "-C", str(self.root), *a], check=True, capture_output=True,
                                              env=env, text=True).stdout
         self.git("add", ".")
@@ -109,6 +112,41 @@ class RunQueueTests(unittest.TestCase):
         self.assertEqual(args[args.index("--model") + 1], "sonnet")
         self.assertEqual(args[args.index("--effort") + 1], "low")
         self.assertEqual(self.git("log", "--format=%s", "-3").split("\n")[:2], ["work T2", "work T1"])
+
+    def test_a_running_task_is_marked_doing_and_restored_to_todo_when_it_fails(self):
+        result = self.run_queue("--max", "5", mode="fail")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        seen = json.loads((self.root / ".seen_board").read_text(encoding="utf-8"))
+        self.assertEqual({task["id"]: task["status"] for task in seen["tasks"]}["T1"], "doing")
+        self.assertEqual(self.states()["T1"], "todo")
+        self.assertEqual(self.git("status", "--porcelain", "--untracked-files=no").strip(), "")
+        marker = Path(self.git("rev-parse", "--absolute-git-dir").strip()) / "run_queue.doing"
+        self.assertFalse(marker.exists())
+
+    def test_a_failed_run_restores_the_board_bytes_exactly_even_with_crlf(self):
+        original = json.dumps({"title": "x", "tasks": [{"id": "T1", "title": "first", "status": "todo"}]},
+                              indent=2).replace("\n", "\r\n").encode("utf-8")
+        board_file = self.root / ".harness" / "board.json"
+        board_file.write_bytes(original)
+        self.git("add", ".harness/board.json")
+        self.git("commit", "-q", "-m", "crlf board")
+        self.git("push", "-q")
+        result = self.run_queue("--max", "5", mode="fail")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(board_file.read_bytes(), original)
+
+    def test_the_board_page_is_rebuilt_while_a_task_runs_and_after_it_ends(self):
+        self.board([{"id": "T1", "title": "first", "status": "todo"}])
+        self.git("add", ".harness/board.json")
+        self.git("commit", "-q", "-m", "one task")
+        self.git("push", "-q")
+        result = self.run_queue("--max", "5", mode="fail")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        during = (self.root / ".seen_html").read_text(encoding="utf-8")
+        self.assertIn('class="spin"', during)
+        after = "".join(page.read_text(encoding="utf-8") for page in Path(self.env["HARNESS_BOARD_HOME"]).rglob("*.html"))
+        self.assertTrue(after)
+        self.assertNotIn('class="spin"', after)
 
     def test_stops_at_the_first_task_that_did_not_finish_cleanly(self):
         for mode, words in (("notdone", "not done"), ("nopush", "not on the remote"), ("norecord", "no work record"),

@@ -27,7 +27,7 @@ LABELS = {
         "blocked": "Blocked", "parked": "Parked", "done": "Done", "decisions": "Waiting for your decision",
         "none": "Nothing is waiting for you.", "look": "Look at", "default": "Default", "updated": "Updated",
         "all": "All boards", "project": "Project", "waiting": "Decisions", "empty": "No boards yet.",
-        "list": "Tasks", "now": "Now", "next": "Next", "idle": "Nothing is in progress.",
+        "list": "Tasks", "now": "Now", "next": "Next", "idle": "Nothing is in progress.", "stalled": "Looks stalled",
         "clear": "Nothing left to start.", "after": "after", "everyone": "Everyone", "records": "Recent work records",
         "need": "Decisions", "ok": "Nothing blocked", "signal": "Signal", "focus": "Now", "on": "On track",
         "order": "Boards with decisions or blocked work come first", "close": "Close", "picture": "Picture", "about": "About the drafts:", "nowTag": "Now", "draftTag": "Draft", "history": "Evidence: earlier drafts and commits", "earlierDraft": "Earlier draft", "why": "Why it was made this way", "path": "How it got here", "sources": "Sources",
@@ -38,7 +38,7 @@ LABELS = {
         "blocked": "막힘", "parked": "보류", "done": "끝남", "decisions": "결정을 기다리는 일",
         "none": "기다리는 결정이 없습니다.", "look": "볼 것", "default": "기본값", "updated": "갱신",
         "all": "전체 보드", "project": "프로젝트", "waiting": "결정 대기", "empty": "아직 보드가 없습니다.",
-        "list": "작업", "now": "지금 하는 일", "next": "다음 차례", "idle": "진행 중인 작업이 없습니다.",
+        "list": "작업", "now": "지금 하는 일", "next": "다음 차례", "idle": "진행 중인 작업이 없습니다.", "stalled": "멈춘 것 같음",
         "clear": "남은 작업이 없습니다.", "after": "다음", "everyone": "전체", "records": "최근 작업 기록",
         "need": "결정 필요", "ok": "막힌 것 없음", "signal": "신호", "focus": "지금", "on": "순조",
         "order": "결정이나 막힘이 있는 보드가 위에 옵니다", "close": "닫기", "picture": "그림", "about": "시안 설명", "nowTag": "지금", "draftTag": "견본", "history": "근거: 이전 시안과 커밋", "earlierDraft": "이전 시안", "why": "왜 이렇게 만들었나", "path": "지나온 과정", "sources": "자료",
@@ -104,6 +104,9 @@ color:var(--ink2);box-shadow:inset 0 0 0 1px var(--ring);cursor:pointer}
 details.fold>summary{cursor:pointer;color:var(--ink2);font-weight:600;font-size:13px;margin-bottom:8px}
 .mark{color:var(--muted)}.mark.doing{color:var(--doing)}.mark.done{color:var(--done)}
 .mark.blocked{color:var(--blocked)}.mark.parked{color:var(--warn-ink)}
+.spin{display:inline-block;width:10px;height:10px;margin-right:8px;border:2px solid var(--doing);border-right-color:transparent;border-radius:50%;vertical-align:-1px;animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation:none}}
 .thumbs{grid-column:2;display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
 .thumb{padding:0;border:0;background:none;cursor:zoom-in;border-radius:8px;box-shadow:inset 0 0 0 1px var(--ring)}
 .thumb img{display:block;width:150px;height:110px;object-fit:cover;border-radius:8px}
@@ -584,6 +587,28 @@ def recent(root):
     return found
 
 
+def runner_stalled(root, source):
+    if os.name == "nt":
+        return None
+    try:
+        git_dir = subprocess.run(["git", "-C", str(root), "rev-parse", "--absolute-git-dir"], capture_output=True,
+                                 text=True, timeout=5, check=True).stdout.strip()
+        marker = json.loads((Path(git_dir) / "run_queue.doing").read_text(encoding="utf-8"))
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+    if not isinstance(marker, dict) or not isinstance(marker.get("pid"), int):
+        return None
+    if not source or marker.get("board") != source:
+        return None
+    try:
+        os.kill(marker["pid"], 0)
+    except ProcessLookupError:
+        return marker.get("task")
+    except OSError:
+        return None
+    return None
+
+
 def focus(board):
     states = {task["id"]: task["status"] for task in board["tasks"]}
     doing = [task for task in board["tasks"] if task["status"] == "doing"]
@@ -598,13 +623,20 @@ def render(board, root, stamp, refresh=5, at=0):
     tally, total, percent = counts(board)
     states, doing, upcoming, waiting = focus(board)
 
-    def line(task, note=""):
-        return (f"<li><span class=\"id\">{esc(task['id'])}</span>{esc(task['title'])}"
+    def line(task, note="", spin=""):
+        return (f"<li>{spin}<span class=\"id\">{esc(task['id'])}</span>{esc(task['title'])}"
                 f"<span class=\"owner\">{esc(task['owner'])}</span>{note}</li>")
 
     def held(task):
         before = ", ".join(name for name in task["after"] if states.get(name) != "done")
         return line(task, f"<div class=\"sub\">{esc(before)} {esc(words['after'])}</div>")
+
+    stalled = runner_stalled(root, board.get("source"))
+
+    def running(task):
+        if task["id"] == stalled:
+            return line(task, f"<span class=\"chip bad\">{esc(words['stalled'])}</span>")
+        return line(task, spin="<span class=\"spin\" aria-hidden=\"true\"></span>")
 
     marks = signals(len(board["decisions"]), tally["blocked"], words) or [
         f"<span class=\"chip good\">{MARKS['done']} {esc(words['ok'])}</span>"]
@@ -612,7 +644,7 @@ def render(board, root, stamp, refresh=5, at=0):
             f"{fresh(at, words)}<a class=\"meta\" href=\"index.html\">{esc(words['all'])}</a>"
             f"<div class=\"meta wide\">{esc(str(root))} · {esc(stamp)}</div></header>")
     now = (f"<div class=\"card\"><h2>{esc(words['now'])}</h2><ul>"
-           + ("".join(line(task) for task in doing) or f"<li class=\"quiet\">{esc(words['idle'])}</li>") + "</ul></div>")
+           + ("".join(running(task) for task in doing) or f"<li class=\"quiet\">{esc(words['idle'])}</li>") + "</ul></div>")
     upcoming_html = "".join(line(task) for task in upcoming[:3]) or "".join(held(task) for task in waiting[:2])
     nxt = (f"<div class=\"card\"><h2>{esc(words['next'])}</h2><ul>"
            + (upcoming_html or f"<li class=\"quiet\">{esc(words['clear'])}</li>") + "</ul></div>")
@@ -770,7 +802,7 @@ def write(path, content):
 def summary(board, root, board_path, name, stamp, at):
     tally, total, percent = counts(board)
     _, doing, upcoming, _ = focus(board)
-    now = (f"{MARKS['doing']} {doing[0]['title']}" if doing else
+    now = (" · ".join(f"{MARKS['doing']} {task['title']}" for task in doing) if doing else
            f"{LABELS[board['lang']]['next']}: {upcoming[0]['title']}" if upcoming else "")
     return {"title": board["title"], "root": str(root), "board": str(board_path), "page": f"{name}.html",
             "percent": percent, "done": tally["done"], "total": total, "doing": tally["doing"],
@@ -780,6 +812,7 @@ def summary(board, root, board_path, name, stamp, at):
 
 def draw(board_path, root, folder):
     board = load(board_path)
+    board["source"] = str(Path(board_path).resolve())
     if board["working_decisions"]:
         board["decisions"] = board["decisions"] + working_decisions(root)
     deadline = time.monotonic() + EVIDENCE_SECONDS

@@ -20,6 +20,7 @@ except ImportError:
 
 BOARD = Path(".harness") / "board.json"
 RECORDS = Path(".harness") / "records"
+RUNNING = "run_queue.doing"
 LANE = re.compile(r"^## Lane 1(?![0-9]).*?$(.*?)(?=^## |\Z)", re.S | re.M)
 HOLDER = re.compile(r"session_id=([^\s,;:)`'\"<>]+)")
 HANDED = re.compile(r"session_id=[^\s,;:)`'\"<>]+[^\n:]*:\s*\**STOPPED\b")
@@ -59,6 +60,47 @@ def next_task(tasks, owner=None):
         if all(states.get(name) == "done" for name in after):
             return task
     return None
+
+
+def status_of(path, task_id):
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    tasks = data.get("tasks") if isinstance(data, dict) else None
+    for task in tasks if isinstance(tasks, list) else []:
+        if isinstance(task, dict) and task.get("id") == task_id:
+            return task.get("status")
+    return None
+
+
+def runner_dir(root):
+    return Path(git(root, "rev-parse", "--absolute-git-dir"))
+
+
+def refresh_page(root):
+    try:
+        subprocess.run([sys.executable, str(Path(__file__).with_name("board.py")), "render", str(root / BOARD)],
+                       cwd=root, env={**os.environ, "HARNESS_BOARD_OPEN": "0"}, capture_output=True, timeout=120)
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
+def mark_doing(root, task_id, original):
+    data = json.loads(original.decode("utf-8"))
+    for task in data["tasks"]:
+        if isinstance(task, dict) and task.get("id") == task_id:
+            task["status"] = "doing"
+    (root / BOARD).write_text(json.dumps(data, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    (runner_dir(root) / RUNNING).write_text(json.dumps({"task": task_id, "pid": os.getpid(), "board": str((root / BOARD).resolve())}), encoding="utf-8")
+    refresh_page(root)
+
+
+def unmark(root, task_id, original):
+    if status_of(root / BOARD, task_id) != "done":
+        (root / BOARD).write_bytes(original)
+    (runner_dir(root) / RUNNING).unlink(missing_ok=True)
+    refresh_page(root)
 
 
 def git(root, *args):
@@ -231,7 +273,9 @@ def run_one(root, task, agent, minutes, log, lane):
     start_head = git(root, "rev-parse", "HEAD")
     started = time.time()
     problems, added = [], False
+    original = (root / BOARD).read_bytes()
     try:
+        mark_doing(root, task["id"], original)
         if lane:
             added = take_lane(root, session, task)
         output, code = launch(command(agent, prompt, session, task), root, minutes)
@@ -242,6 +286,12 @@ def run_one(root, task, agent, minutes, log, lane):
                     problems.append("the session committed its Lane 1 line; WORKING.md needs a commit without it")
             except (OSError, subprocess.SubprocessError) as error:
                 problems.append(f"lane 1 could not be released ({error})")
+        if status_of(root / BOARD, task["id"]) is None:
+            problems.append("the board cannot be read or the task is gone after the session")
+        try:
+            unmark(root, task["id"], original)
+        except (OSError, subprocess.SubprocessError) as error:
+            problems.append(f"the board could not be restored to todo ({error})")
     log.write(f"\n=== {task['id']} session {session} exit {code}\n{output}\n")
     log.flush()
     problems = check(root, task, start_head, started, code) + problems

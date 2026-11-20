@@ -103,6 +103,28 @@ class BoardTests(Case):
         with self.assertRaises(ValueError):
             board.load(self.root / ".harness" / "board.json")
 
+    def test_a_task_in_progress_spins_and_a_dead_runner_is_shown_as_stalled(self):
+        self.save([task("a", "doing"), task("b", "todo")])
+        content = self.page()
+        self.assertIn('<span class="spin" aria-hidden="true"></span>', content)
+        subprocess.run(["git", "init", "-q", str(self.root)], check=True)
+        marker = self.root / ".git" / "run_queue.doing"
+        marker.write_text(json.dumps({"task": "a", "pid": 999999, "board": str(self.path.resolve())}), encoding="utf-8")
+        if os.name != "nt":
+            content = self.page()
+            self.assertNotIn('<span class="spin" aria-hidden="true"></span>', content)
+            self.assertIn('class="chip bad"', content)
+        other = self.root / ".harness" / "other.json"
+        other.write_text(self.path.read_text(encoding="utf-8"), encoding="utf-8")
+        marker.write_text(json.dumps({"task": "a", "pid": 999999, "board": str(self.path.resolve())}), encoding="utf-8")
+        if os.name != "nt":
+            self.assertIn('<span class="spin" aria-hidden="true"></span>', board.publish(other).read_text(encoding="utf-8"))
+        marker.write_text(json.dumps({"task": "a", "pid": 999999, "board": "/elsewhere/board.json"}), encoding="utf-8")
+        if os.name != "nt":
+            self.assertIn('<span class="spin" aria-hidden="true"></span>', self.page())
+        marker.write_text(json.dumps({"task": "a", "pid": os.getpid(), "board": str(self.path.resolve())}), encoding="utf-8")
+        self.assertIn('<span class="spin" aria-hidden="true"></span>', self.page())
+
     def test_tasks_are_grouped_by_state_with_what_is_next(self):
         self.save([task("a", "done"), task("b", "doing"), task("c", after=["b"]), task("d", after=["a"]),
                    task("e", "blocked"), task("f", after=["e"])])
