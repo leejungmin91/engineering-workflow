@@ -443,6 +443,49 @@ class BoardTests(Case):
         board.publish(self.path)
         self.assertNotIn("Second", (self.home / "index.html").read_text(encoding="utf-8"))
 
+    def test_overview_keeps_a_broken_board_as_an_error_row_on_top(self):
+        self.save([task("a", "done"), task("b")])
+        board.publish(self.path)
+        other = self.root.parent / "other"
+        (other / ".harness").mkdir(parents=True)
+        second = other / ".harness" / "board.json"
+        second.write_text(json.dumps({"title": "Second", "tasks": [task("x")]}), encoding="utf-8")
+        board.publish(second)
+        second.write_text(json.dumps({"title": "Second", "tasks": [task("x"), task("x")]}), encoding="utf-8")
+        os.utime(second, (time.time() + 5, time.time() + 5))
+        board.publish(self.path)
+        listing = (self.home / "index.html").read_text(encoding="utf-8")
+        self.assertIn("Second", listing)
+        self.assertIn("Board error", listing)
+        self.assertIn("duplicate task x", listing)
+        self.assertLess(listing.index("Second"), listing.index("Demo"))
+        second.write_text(json.dumps({"title": "Second", "tasks": [task("x", after=["\ud800"])]}), encoding="utf-8")
+        os.utime(second, (time.time() + 8, time.time() + 8))
+        board.publish(self.path)
+        self.assertIn("Board error", (self.home / "index.html").read_text(encoding="utf-8"))
+        second.write_text(json.dumps({"title": "Second fixed", "tasks": [task("x", "done"), task("y")]}), encoding="utf-8")
+        os.utime(second, (time.time() - 3600, time.time() - 3600))
+        board.publish(self.path)
+        listing = (self.home / "index.html").read_text(encoding="utf-8")
+        self.assertIn("Second fixed", listing)
+        self.assertIn("50% · 1 of 2", listing)
+        self.assertNotIn("Board error", listing)
+
+    def test_overview_survives_any_exception_from_another_board(self):
+        self.save([task("a")])
+        board.publish(self.path)
+        other = self.root.parent / "other"
+        (other / ".harness").mkdir(parents=True)
+        second = other / ".harness" / "board.json"
+        second.write_text(json.dumps({"title": "Second", "tasks": [task("x")]}), encoding="utf-8")
+        board.publish(second)
+        os.utime(second, (time.time() + 5, time.time() + 5))
+        with mock.patch.object(board, "render", side_effect=["<html></html>", OverflowError("too big")]):
+            board.publish(self.path)
+        listing = (self.home / "index.html").read_text(encoding="utf-8")
+        self.assertIn("Second", listing)
+        self.assertIn("too big", listing)
+
     def test_overview_ignores_summaries_it_did_not_write(self):
         self.save([task("a")])
         board.publish(self.path)

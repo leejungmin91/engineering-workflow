@@ -32,6 +32,7 @@ LABELS = {
         "need": "Decisions", "ok": "Nothing blocked", "signal": "Signal", "focus": "Now", "on": "On track",
         "order": "Boards with decisions or blocked work come first", "close": "Close", "picture": "Picture", "about": "About the drafts:", "nowTag": "Now", "draftTag": "Draft", "history": "Evidence: earlier drafts and commits", "earlierDraft": "Earlier draft", "why": "Why it was made this way", "path": "How it got here", "sources": "Sources",
         "prev": "Previous", "nextpic": "Next", "registry": "Registry: graph, judge, models, connection",
+        "broken": "Board error: showing the last good state",
     },
     "ko": {
         "progress": "전체 진행률", "of": "/", "tasks": "작업 완료", "doing": "진행 중", "todo": "남은 일",
@@ -43,6 +44,7 @@ LABELS = {
         "need": "결정 필요", "ok": "막힌 것 없음", "signal": "신호", "focus": "지금", "on": "순조",
         "order": "결정이나 막힘이 있는 보드가 위에 옵니다", "close": "닫기", "picture": "그림", "about": "시안 설명", "nowTag": "지금", "draftTag": "견본", "history": "근거: 이전 시안과 커밋", "earlierDraft": "이전 시안", "why": "왜 이렇게 만들었나", "path": "지나온 과정", "sources": "자료",
         "prev": "이전", "nextpic": "다음", "registry": "등록부: 그래프, 판단, 모델, 연결",
+        "broken": "보드 오류: 마지막 정상 상태를 보여 줍니다",
     },
 }
 BAR_ORDER = ("done", "doing", "parked", "blocked", "todo")
@@ -747,7 +749,8 @@ def overview(entries, lang, refresh=5, registry=False):
     esc = html.escape
 
     def order(entry):
-        return (-(entry["decisions"] + entry.get("blocked", 0)), -entry["doing"], entry["title"].casefold())
+        return (not entry.get("error"), -(entry["decisions"] + entry.get("blocked", 0)), -entry["doing"],
+                entry["title"].casefold())
 
     rows = []
     for entry in sorted(entries, key=order):
@@ -757,6 +760,9 @@ def overview(entries, lang, refresh=5, registry=False):
             tally.update({"done": entry["done"], "doing": entry["doing"], "todo": entry["total"] - entry["done"] - entry["doing"]})
         marks = signals(entry["decisions"], entry.get("blocked", 0), words, esc(entry["page"])) or [
             f"<span class=\"chip good\">{MARKS['done']} {esc(words['on'])}</span>"]
+        if isinstance(entry.get("error"), str) and entry["error"]:
+            marks = [f"<span class=\"chip bad\" title=\"{esc(entry['error'])}\">{MARKS['blocked']} {esc(words['broken'])}</span>"
+                     f"<div class=\"meta\">{esc(entry['error'])}</div>"]
         rows.append(f"<tr><td><a href=\"{esc(entry['page'])}\"><b>{esc(entry['title'])}</b></a>"
                     f"<div class=\"meta\">{esc(entry['root'])}</div></td><td>{''.join(marks)}</td>"
                     f"<td>{entry['percent']}% · {entry['done']} {esc(words['of'])} {entry['total']}"
@@ -849,12 +855,20 @@ def publish(board_path, root=None, out=None):
             if not (texts and numbers and PAGE.fullmatch(entry["page"]) and Path(entry["board"]).is_file()):
                 continue
             other = Path(entry["board"])
-            stale = other.stat().st_mtime > listed.stat().st_mtime or "tally" not in entry or "at" not in entry
+            stale = (other.stat().st_mtime > listed.stat().st_mtime or "tally" not in entry or "at" not in entry
+                     or "error" in entry)
             if listed.stem != name and stale and slug(entry["root"]) == listed.stem:
-                again, again_stamp, again_at = draw(other, Path(entry["root"]), folder)
-                write(folder / f"{listed.stem}.html", render(again, Path(entry["root"]), again_stamp, at=again_at))
-                entry = summary(again, Path(entry["root"]), other, listed.stem, again_stamp, again_at)
-                write(listed, json.dumps(entry, ensure_ascii=False))
+                try:
+                    again, again_stamp, again_at = draw(other, Path(entry["root"]), folder)
+                    write(folder / f"{listed.stem}.html", render(again, Path(entry["root"]), again_stamp, at=again_at))
+                    entry = summary(again, Path(entry["root"]), other, listed.stem, again_stamp, again_at)
+                except Exception as problem:
+                    text = (str(problem)[:200] or type(problem).__name__).encode("utf-8", "backslashreplace")
+                    entry["error"] = text.decode("utf-8")
+                try:
+                    write(listed, json.dumps(entry, ensure_ascii=False))
+                except OSError:
+                    pass
             entry.setdefault("blocked", 0)
             entry.setdefault("at", 0)
             entry.setdefault("focus", "")
