@@ -26,7 +26,7 @@ LABELS = {
         "progress": "Progress", "of": "of", "tasks": "tasks done", "doing": "In progress", "todo": "To do",
         "blocked": "Blocked", "parked": "Parked", "done": "Done", "decisions": "Waiting for your decision",
         "none": "Nothing is waiting for you.", "look": "Look at", "default": "Default", "updated": "Updated",
-        "all": "All boards", "project": "Project", "waiting": "Decisions", "empty": "No boards yet.",
+        "all": "All boards", "drafts": "Drafts", "chosen": "Chosen draft", "archived": "Archived drafts", "nochosen": "No draft is chosen yet. Add its folder to \"chosen\" in .harness/drafts.json.", "project": "Project", "waiting": "Decisions", "empty": "No boards yet.",
         "list": "Tasks", "now": "Now", "next": "Next", "idle": "Nothing is in progress.", "stalled": "Looks stalled",
         "clear": "Nothing left to start.", "after": "after", "everyone": "Everyone", "records": "Recent work records",
         "need": "Decisions", "ok": "Nothing blocked", "signal": "Signal", "focus": "Now", "on": "On track",
@@ -38,7 +38,7 @@ LABELS = {
         "progress": "전체 진행률", "of": "/", "tasks": "작업 완료", "doing": "진행 중", "todo": "남은 일",
         "blocked": "막힘", "parked": "보류", "done": "끝남", "decisions": "결정을 기다리는 일",
         "none": "기다리는 결정이 없습니다.", "look": "볼 것", "default": "기본값", "updated": "갱신",
-        "all": "전체 보드", "project": "프로젝트", "waiting": "결정 대기", "empty": "아직 보드가 없습니다.",
+        "all": "전체 보드", "drafts": "시안", "chosen": "선택된 시안", "archived": "보관된 시안", "nochosen": "아직 선택한 시안이 없습니다. .harness/drafts.json의 \"chosen\"에 폴더를 추가하세요.", "project": "프로젝트", "waiting": "결정 대기", "empty": "아직 보드가 없습니다.",
         "list": "작업", "now": "지금 하는 일", "next": "다음 차례", "idle": "진행 중인 작업이 없습니다.", "stalled": "멈춘 것 같음",
         "clear": "남은 작업이 없습니다.", "after": "다음", "everyone": "전체", "records": "최근 작업 기록",
         "need": "결정 필요", "ok": "막힌 것 없음", "signal": "신호", "focus": "지금", "on": "순조",
@@ -744,6 +744,124 @@ def render(board, root, stamp, refresh=5, at=0):
     return page(board["title"], body, refresh, board["lang"])
 
 
+DRAFTS = Path(".harness") / "drafts.json"
+DRAFT_IMAGES = 24
+DRAFT_SKIP = {"node_modules", "Library", ".git", "drafts-assets"}
+DRAFT_STYLE = """
+.drafts{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.drafts figure{margin:0;background:#fff;border:1px solid #e3e1d9;border-radius:8px;padding:6px}
+.drafts img{width:100%;height:120px;object-fit:contain;background:#f0efe9;border-radius:4px}
+.drafts figcaption{font-size:11px;color:#555;margin-top:4px;word-break:break-all}
+details.draft{margin:8px 0}details.draft>summary{cursor:pointer;font-weight:600;padding:4px 0}
+details.draft>summary span{color:#888;font-weight:400;margin-left:6px}
+.chosen{border:2px solid var(--doing);border-radius:10px;padding:10px}
+"""
+
+
+def draft_config(root):
+    path = Path(root) / DRAFTS
+    if not path.is_file():
+        return None
+    data = json.loads(path.read_text(encoding="utf-8"))
+    folders = data.get("folders") if isinstance(data, dict) else None
+    chosen = data.get("chosen", []) if isinstance(data, dict) else None
+    if not (isinstance(folders, list) and isinstance(chosen, list)
+            and all(isinstance(item, str) for item in folders + chosen)):
+        raise ValueError("drafts.json needs \"folders\" and \"chosen\" as lists of paths")
+    return folders, chosen
+
+
+def draft_key(root, item):
+    base = Path(root).resolve()
+    given = Path(item) if Path(item).is_absolute() else base / item
+    try:
+        return given.resolve().relative_to(base).as_posix()
+    except (OSError, ValueError, RuntimeError):
+        return None
+
+
+def draft_folders(root, folders):
+    base = Path(root).resolve()
+    found = []
+    for rel in folders:
+        try:
+            top = (base / rel).resolve()
+            top.relative_to(base)
+        except (OSError, ValueError, RuntimeError):
+            continue
+        if not top.is_dir():
+            continue
+        for current, names, files in os.walk(top):
+            names[:] = sorted(name for name in names if name not in DRAFT_SKIP)
+            if any(Path(name).suffix.lower() in PICTURE_KINDS for name in files):
+                rel = Path(current).relative_to(base).as_posix()
+                if rel not in found:
+                    found.append(rel)
+    return found
+
+
+def draft_block(root, folder, rel, opened, words):
+    base = Path(root).resolve()
+    target = base / rel
+    names = sorted(name for name in os.listdir(target)
+                   if Path(name).suffix.lower() in PICTURE_KINDS and (target / name).is_file())
+    cells = []
+    for name in names[:DRAFT_IMAGES]:
+        source = target / name
+        try:
+            info = source.stat()
+            if info.st_size > PICTURE_BYTES:
+                continue
+            digest = hashlib.sha256(f"{source}\n{info.st_mtime_ns}\n{info.st_size}".encode("utf-8")).hexdigest()[:16]
+            copied = folder / "drafts-assets" / f"{digest}{source.suffix.lower()}"
+            if not copied.is_file():
+                copy_inside(source, base, copied)
+        except OSError:
+            continue
+        cells.append(f"<figure><a href=\"drafts-assets/{copied.name}\" target=\"_blank\">"
+                     f"<img src=\"drafts-assets/{copied.name}\" loading=\"lazy\" alt=\"\"></a>"
+                     f"<figcaption>{html.escape(name)}</figcaption></figure>")
+    rest = len(names) - DRAFT_IMAGES
+    more = f"<p class=\"meta\">+{rest}</p>" if rest > 0 else ""
+    attr = " open" if opened else ""
+    return (f"<details class=\"draft\"{attr}><summary>{html.escape(rel)}<span>{len(names)}</span></summary>"
+            f"<div class=\"drafts\">{''.join(cells)}</div>{more}</details>")
+
+
+def base_of(root):
+    return Path(root).resolve()
+
+
+def drafts_page(root, folder, lang):
+    config = draft_config(root)
+    if config is None:
+        return None
+    folders, chosen = config
+    words = LABELS[lang]
+    esc = html.escape
+    found = draft_folders(root, folders)
+    picks = []
+    for item in chosen:
+        key = draft_key(root, item)
+        if key and key not in picks and (base_of(root) / key).is_dir():
+            picks.append(key)
+    rest = [rel for rel in found if rel not in picks]
+    top = "".join(draft_block(root, folder, rel, True, words) for rel in picks) or f"<p class=\"quiet\">{esc(words['nochosen'])}</p>"
+    bottom = "".join(draft_block(root, folder, rel, False, words) for rel in rest)
+    body = (f"<header><h1>{esc(Path(root).name)} · {esc(words['drafts'])}</h1>"
+            f"<a class=\"chip\" href=\"index.html\">{esc(words['all'])}</a></header>"
+            f"<div class=\"card chosen\"><h2>{esc(words['chosen'])}</h2>{top}</div>"
+            f"<div class=\"card\"><h2>{esc(words['archived'])} ({len(rest)})</h2>{bottom}</div>")
+    return page(f"{Path(root).name} {words['drafts']}", body, 0, lang).replace("</style>", DRAFT_STYLE + "</style>", 1)
+
+
+def drafts_content(root, folder, lang, name):
+    try:
+        return drafts_page(root, folder, lang)
+    except (OSError, ValueError, KeyError, TypeError, RecursionError, RuntimeError) as problem:
+        return page(f"{name} drafts", f"<p class=\"quiet\">{html.escape(str(problem)[:300] or type(problem).__name__)}</p>", 0, lang)
+
+
 def overview(entries, lang, refresh=5, registry=False):
     words = LABELS[lang]
     esc = html.escape
@@ -760,6 +878,8 @@ def overview(entries, lang, refresh=5, registry=False):
             tally.update({"done": entry["done"], "doing": entry["doing"], "todo": entry["total"] - entry["done"] - entry["doing"]})
         marks = signals(entry["decisions"], entry.get("blocked", 0), words, esc(entry["page"])) or [
             f"<span class=\"chip good\">{MARKS['done']} {esc(words['on'])}</span>"]
+        if entry.get("drafts") and PAGE.fullmatch(str(entry["drafts"])):
+            marks = marks + [f"<a class=\"chip\" href=\"{esc(entry['drafts'])}\">{esc(words['drafts'])}</a>"]
         if isinstance(entry.get("error"), str) and entry["error"]:
             marks = [f"<span class=\"chip bad\" title=\"{esc(entry['error'])}\">{MARKS['blocked']} {esc(words['broken'])}</span>"
                      f"<div class=\"meta\">{esc(entry['error'])}</div>"]
@@ -845,7 +965,12 @@ def publish(board_path, root=None, out=None):
         write(Path(out), content)
         return Path(out)
     write(folder / f"{name}.html", content)
-    write(folder / f"{name}.json", json.dumps(summary(board, root, board_path, name, stamp, at), ensure_ascii=False))
+    entry = summary(board, root, board_path, name, stamp, at)
+    content = drafts_content(root, folder, board["lang"], name)
+    if content is not None:
+        write(folder / f"{name}-drafts.html", content)
+        entry["drafts"] = f"{name}-drafts.html"
+    write(folder / f"{name}.json", json.dumps(entry, ensure_ascii=False))
     entries = []
     for listed in sorted(folder.glob("*.json")):
         try:
@@ -855,13 +980,19 @@ def publish(board_path, root=None, out=None):
             if not (texts and numbers and PAGE.fullmatch(entry["page"]) and Path(entry["board"]).is_file()):
                 continue
             other = Path(entry["board"])
-            stale = (other.stat().st_mtime > listed.stat().st_mtime or "tally" not in entry or "at" not in entry
-                     or "error" in entry)
+            config = Path(entry["root"]) / DRAFTS
+            newest = max([other.stat().st_mtime] + ([config.stat().st_mtime] if config.is_file() else []))
+            stale = (newest > listed.stat().st_mtime or "tally" not in entry or "at" not in entry
+                     or "error" in entry or ("drafts" in entry) != config.is_file())
             if listed.stem != name and stale and slug(entry["root"]) == listed.stem:
                 try:
                     again, again_stamp, again_at = draw(other, Path(entry["root"]), folder)
                     write(folder / f"{listed.stem}.html", render(again, Path(entry["root"]), again_stamp, at=again_at))
                     entry = summary(again, Path(entry["root"]), other, listed.stem, again_stamp, again_at)
+                    refreshed = drafts_content(Path(entry["root"]), folder, again["lang"], listed.stem)
+                    if refreshed is not None:
+                        write(folder / f"{listed.stem}-drafts.html", refreshed)
+                        entry["drafts"] = f"{listed.stem}-drafts.html"
                 except Exception as problem:
                     text = (str(problem)[:200] or type(problem).__name__).encode("utf-8", "backslashreplace")
                     entry["error"] = text.decode("utf-8")

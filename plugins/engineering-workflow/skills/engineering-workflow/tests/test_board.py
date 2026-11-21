@@ -125,6 +125,144 @@ class BoardTests(Case):
         marker.write_text(json.dumps({"task": "a", "pid": os.getpid(), "board": str(self.path.resolve())}), encoding="utf-8")
         self.assertIn('<span class="spin" aria-hidden="true"></span>', self.page())
 
+    def test_drafts_put_the_chosen_folder_first_and_keep_outside_folders_out(self):
+        self.save([task("a")])
+        final = self.root / "docs" / "art" / "zz_final"
+        old = self.root / "docs" / "art" / "aa_old"
+        final.mkdir(parents=True)
+        old.mkdir(parents=True)
+        (final / "g2.png").write_bytes(b"\x89PNG final")
+        (old / "old.png").write_bytes(b"\x89PNG old")
+        outside = self.root.parent / "outside"
+        outside.mkdir()
+        (outside / "leak.png").write_bytes(b"\x89PNG leak")
+        (self.path.parent / "drafts.json").write_text(
+            json.dumps({"folders": ["docs/art", "../outside"], "chosen": ["docs/art/zz_final"]}), encoding="utf-8")
+        board.publish(self.path)
+        name = board.slug(self.root.resolve())
+        drafts = (self.home / f"{name}-drafts.html").read_text(encoding="utf-8")
+        archived = board.LABELS["en"]["archived"]
+        self.assertLess(drafts.index("docs/art/zz_final"), drafts.index(archived))
+        self.assertGreater(drafts.index("docs/art/aa_old"), drafts.index(archived))
+        self.assertIn("drafts-assets/", drafts)
+        self.assertNotIn("leak.png", drafts)
+        self.assertNotIn("../outside", drafts)
+        self.assertIn(f"{name}-drafts.html", (self.home / "index.html").read_text(encoding="utf-8"))
+        other_root = self.root.parent / "second"
+        (other_root / ".harness").mkdir(parents=True)
+        (other_root / ".harness" / "board.json").write_text(json.dumps({"title": "Second", "tasks": [task("b")]}), encoding="utf-8")
+        os.utime(self.path, (time.time() + 60, time.time() + 60))
+        board.publish(other_root / ".harness" / "board.json")
+        self.assertIn(f"{name}-drafts.html", (self.home / "index.html").read_text(encoding="utf-8"))
+
+    def test_a_board_gets_its_drafts_page_when_another_board_refreshes_it(self):
+        self.save([task("a")])
+        board.publish(self.path)
+        name = board.slug(self.root.resolve())
+        folder = self.root / "docs" / "art" / "zz_final"
+        folder.mkdir(parents=True)
+        (folder / "g2.png").write_bytes(b"\x89PNG final")
+        (self.path.parent / "drafts.json").write_text(
+            json.dumps({"folders": ["docs/art"], "chosen": ["docs/art/zz_final"]}), encoding="utf-8")
+        other_root = self.root.parent / "second"
+        (other_root / ".harness").mkdir(parents=True)
+        (other_root / ".harness" / "board.json").write_text(json.dumps({"title": "Second", "tasks": [task("b")]}), encoding="utf-8")
+        os.utime(self.path, (time.time() + 60, time.time() + 60))
+        board.publish(other_root / ".harness" / "board.json")
+        self.assertTrue((self.home / f"{name}-drafts.html").is_file())
+        self.assertIn(f"{name}-drafts.html", (self.home / "index.html").read_text(encoding="utf-8"))
+
+    def test_drafts_paths_are_normalised_and_a_broken_drafts_file_stays_on_its_board(self):
+        self.save([task("a")])
+        final = self.root / "docs" / "art" / "final"
+        final.mkdir(parents=True)
+        (final / "g2.png").write_bytes(b"\x89PNG final")
+        (self.path.parent / "drafts.json").write_text(
+            json.dumps({"folders": ["docs/art"], "chosen": ["./docs/art/final/"]}), encoding="utf-8")
+        board.publish(self.path)
+        name = board.slug(self.root.resolve())
+        drafts = (self.home / f"{name}-drafts.html").read_text(encoding="utf-8")
+        self.assertLess(drafts.index("docs/art/final"), drafts.index(board.LABELS["en"]["archived"]))
+        (self.path.parent / "drafts.json").write_text("{", encoding="utf-8")
+        other_root = self.root.parent / "second"
+        (other_root / ".harness").mkdir(parents=True)
+        (other_root / ".harness" / "board.json").write_text(json.dumps({"title": "Second", "tasks": [task("b")]}), encoding="utf-8")
+        os.utime(self.path, (time.time() + 60, time.time() + 60))
+        board.publish(other_root / ".harness" / "board.json")
+        index = (self.home / "index.html").read_text(encoding="utf-8")
+        self.assertNotIn(board.LABELS["en"]["broken"], index)
+        self.assertIn(f"{name}-drafts.html", index)
+
+    def test_changing_only_the_drafts_file_refreshes_the_other_board_too(self):
+        self.save([task("a")])
+        first = self.root / "docs" / "art" / "first"
+        final = self.root / "docs" / "art" / "final"
+        first.mkdir(parents=True)
+        final.mkdir(parents=True)
+        (first / "a.png").write_bytes(b"\x89PNG a")
+        (final / "b.png").write_bytes(b"\x89PNG b")
+        (self.path.parent / "drafts.json").write_text(json.dumps({"folders": ["docs/art"], "chosen": ["docs/art/first"]}), encoding="utf-8")
+        board.publish(self.path)
+        name = board.slug(self.root.resolve())
+        (self.path.parent / "drafts.json").write_text(json.dumps({"folders": ["docs/art"], "chosen": ["docs/art/../art/final"]}), encoding="utf-8")
+        other_root = self.root.parent / "second"
+        (other_root / ".harness").mkdir(parents=True)
+        (other_root / ".harness" / "board.json").write_text(json.dumps({"title": "Second", "tasks": [task("b")]}), encoding="utf-8")
+        os.utime(self.path.parent / "drafts.json", (time.time() + 60, time.time() + 60))
+        board.publish(other_root / ".harness" / "board.json")
+        drafts = (self.home / f"{name}-drafts.html").read_text(encoding="utf-8")
+        self.assertLess(drafts.index("docs/art/final"), drafts.index(board.LABELS["en"]["archived"]))
+
+    def test_removing_the_drafts_file_removes_the_link_on_the_next_refresh(self):
+        self.save([task("a")])
+        final = self.root / "docs" / "art" / "final"
+        final.mkdir(parents=True)
+        (final / "b.png").write_bytes(b"\x89PNG b")
+        (self.path.parent / "drafts.json").write_text(json.dumps({"folders": ["docs/art/../art"], "chosen": ["docs/art/final"]}), encoding="utf-8")
+        board.publish(self.path)
+        name = board.slug(self.root.resolve())
+        drafts = (self.home / f"{name}-drafts.html").read_text(encoding="utf-8")
+        self.assertLess(drafts.index("docs/art/final"), drafts.index(board.LABELS["en"]["archived"]))
+        (self.root / "docs" / "alias").symlink_to(final, target_is_directory=True)
+        (self.path.parent / "drafts.json").write_text(json.dumps({"folders": ["docs/art/../art", "docs/alias"], "chosen": ["docs/alias"]}), encoding="utf-8")
+        board.publish(self.path)
+        drafts = (self.home / f"{name}-drafts.html").read_text(encoding="utf-8")
+        self.assertLess(drafts.index("docs/art/final"), drafts.index(board.LABELS["en"]["archived"]))
+        (self.path.parent / "drafts.json").unlink()
+        other_root = self.root.parent / "second"
+        (other_root / ".harness").mkdir(parents=True)
+        (other_root / ".harness" / "board.json").write_text(json.dumps({"title": "Second", "tasks": [task("b")]}), encoding="utf-8")
+        board.publish(other_root / ".harness" / "board.json")
+        self.assertNotIn(f"{name}-drafts.html", (self.home / "index.html").read_text(encoding="utf-8"))
+
+    def test_a_symlink_loop_or_a_linked_chosen_folder_never_breaks_the_board(self):
+        self.save([task("a")])
+        vault = self.root / "docs" / "vault" / "final"
+        vault.mkdir(parents=True)
+        (vault / "b.png").write_bytes(b"\x89PNG b")
+        (self.root / "docs" / "art").mkdir(parents=True)
+        (self.root / "docs" / "art" / "loop").symlink_to(self.root / "docs" / "art" / "loop")
+        (self.root / "docs" / "linked").symlink_to(vault, target_is_directory=True)
+        (self.path.parent / "drafts.json").write_text(
+            json.dumps({"folders": ["docs/art", "docs/art/loop"], "chosen": ["docs/linked"]}), encoding="utf-8")
+        board.publish(self.path)
+        name = board.slug(self.root.resolve())
+        drafts = (self.home / f"{name}-drafts.html").read_text(encoding="utf-8")
+        self.assertLess(drafts.index("docs/vault/final"), drafts.index(board.LABELS["en"]["archived"]))
+        self.assertIn(f"{name}-drafts.html", (self.home / "index.html").read_text(encoding="utf-8"))
+
+    def test_a_folder_listed_twice_is_shown_once(self):
+        self.save([task("a")])
+        old = self.root / "docs" / "art" / "old"
+        old.mkdir(parents=True)
+        (old / "c.png").write_bytes(b"\x89PNG c")
+        (self.path.parent / "drafts.json").write_text(
+            json.dumps({"folders": ["docs/art", "docs/art/old"], "chosen": []}), encoding="utf-8")
+        board.publish(self.path)
+        name = board.slug(self.root.resolve())
+        drafts = (self.home / f"{name}-drafts.html").read_text(encoding="utf-8")
+        self.assertEqual(drafts.count("<summary>docs/art/old"), 1)
+
     def test_tasks_are_grouped_by_state_with_what_is_next(self):
         self.save([task("a", "done"), task("b", "doing"), task("c", after=["b"]), task("d", after=["a"]),
                    task("e", "blocked"), task("f", after=["e"])])
