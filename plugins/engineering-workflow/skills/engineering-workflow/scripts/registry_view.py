@@ -245,7 +245,7 @@ svg.wires{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .box{background:var(--panel);border:1px solid var(--ring);border-radius:12px;padding:14px 16px;margin-bottom:14px}
 .box h2{font-size:13px;margin:0 0 10px;color:var(--ink2)}table{width:100%;border-collapse:collapse;font-size:13px}
 th{text-align:left;color:var(--muted);font-weight:600;font-size:12px;padding:6px 8px}td{padding:6px 8px;border-top:1px solid var(--line);vertical-align:top}
-td.n,th.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}td.mono{white-space:nowrap}
+td.n,th.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}td.decision,th.decision{min-width:220px;white-space:normal;word-break:keep-all}td.mono.picked,th.picked{white-space:normal;word-break:break-all;min-width:240px}.scroll{overflow-x:auto}td.mono{white-space:nowrap}
 .steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,1fr);gap:10px;counter-reset:s}
 .steps li{counter-increment:s;background:#151c23;border:1px solid var(--ring);border-radius:10px;padding:10px 12px;min-width:0}
 .steps li::before{content:counter(s);display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#1f2a33;color:var(--glow);font-size:12px;margin-right:8px}
@@ -399,10 +399,10 @@ function judgeTab() {
 <div class="box"><h2>${esc(W.timing)}</h2><table><thead><tr><th>${esc(W.who)}</th><th class="n">${esc(W.count)}</th><th class="n">${esc(W.secs)} p50</th><th class="n">${esc(W.secs)} p95</th><th class="n">${esc(W.jsecs)} p50</th><th class="n">${esc(W.jsecs)} p95</th><th class="n">${esc(W.rate)}</th></tr></thead><tbody>
 ${[[W.outside, outRows, 'out'], [W.local, localRows, '']].map(([name, list, cls]) => `<tr><td><span class="pill ${cls}">${esc(name)}</span></td><td class="n">${list.length}</td><td class="n">${pct(list, 'seconds', .5)}</td><td class="n">${pct(list, 'seconds', .95)}</td><td class="n">${pct(list, 'judge_seconds', .5)}</td><td class="n">${pct(list, 'judge_seconds', .95)}</td><td class="n">${rate(list)}</td></tr>`).join('')}</tbody></table></div></div>
 <div class="box"><h2>${esc(W.log)}</h2><div class="filters">${[['all', W.every], ['outside', W.outside], ['local', W.local]].map(([k, v]) => `<button class="chip" data-j="${k}" aria-pressed="${filter === k}">${esc(v)}</button>`).join('')}</div>
-<table><thead><tr><th>${esc(W.time)}</th><th>${esc(W.who)}</th><th class="n">${esc(W.secs)}</th><th class="n">${esc(W.jsecs)}</th><th>${esc(W.decision)}</th><th>${esc(W.picked)}</th></tr></thead><tbody>
+<div class="scroll"><table><thead><tr><th>${esc(W.time)}</th><th>${esc(W.who)}</th><th class="n">${esc(W.secs)}</th><th class="n">${esc(W.jsecs)}</th><th class="decision">${esc(W.decision)}</th><th class="picked">${esc(W.picked)}</th></tr></thead><tbody>
 ${rows.map(r => `<tr><td class="mono">${esc(r.at.replace('T', ' '))}</td><td><span class="pill ${isOut(r) ? 'out' : ''}">${esc(isOut(r) ? W.outside : failed(r) ? W.failed : W.local)}</span></td>
 <td class="n">${r.seconds ?? '-'}s</td><td class="n">${r.judge_seconds ?? '-'}${r.judge_seconds == null ? '' : 's'}</td>
-<td>${r.chosen.length ? fill(W.pickedN, {n: r.chosen.length, o: r.offered}) : r.offered ? fill(W.none, {o: r.offered}) : esc(W.empty)}</td><td class="mono">${r.chosen.map(esc).join('<br>')}</td></tr>`).join('')}</tbody></table></div>`;
+<td class="decision">${r.chosen.length ? fill(W.pickedN, {n: r.chosen.length, o: r.offered}) : r.offered ? fill(W.none, {o: r.offered}) : esc(W.empty)}</td><td class="mono picked">${r.chosen.map(esc).join('<br>')}</td></tr>`).join('')}</tbody></table></div></div>`;
   document.querySelectorAll('[data-j]').forEach(b => b.onclick = () => { filter = b.dataset.j; judgeTab(); }); }
 judgeTab();
 

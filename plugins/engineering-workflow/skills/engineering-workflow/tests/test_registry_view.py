@@ -23,6 +23,17 @@ def layout_step_source():
     return page[start:end]
 
 
+class LogTableTests(unittest.TestCase):
+    def test_the_decision_column_has_room_and_wraps_by_word(self):
+        self.assertIn("td.decision,th.decision{min-width:220px;white-space:normal", view.PAGE)
+        self.assertIn('<th class="decision">', view.PAGE)
+        self.assertIn('<td class="decision">', view.PAGE)
+        self.assertIn('<td class="mono picked">', view.PAGE)
+        self.assertIn("td.mono.picked,th.picked{white-space:normal", view.PAGE)
+        self.assertIn('<div class="scroll">', view.PAGE)
+        self.assertIn(".scroll{overflow-x:auto}", view.PAGE)
+
+
 class LayoutTests(unittest.TestCase):
     def test_the_graph_layout_stays_bounded_on_a_dense_graph(self):
         import shutil
