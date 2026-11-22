@@ -304,11 +304,11 @@ function step() {
   for (const n of nodes) { const key = Math.floor(n.x / cell) + ',' + Math.floor(n.y / cell); (grid.get(key) || grid.set(key, []).get(key)).push(n); }
   for (const n of nodes) { const cx = Math.floor(n.x / cell), cy = Math.floor(n.y / cell);
     for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (const m of grid.get((cx + dx) + ',' + (cy + dy)) || []) {
-      if (m === n) continue; const x = n.x - m.x, y = n.y - m.y, d2 = x * x + y * y + .01; if (d2 > cell * cell) continue;
+      if (m === n) continue; const x = n.x - m.x, y = n.y - m.y, d2 = x * x + y * y + 64; if (d2 > cell * cell) continue;
       const f = 2600 / d2; n.vx += x * f * .02; n.vy += y * f * .02; } n.vx -= n.x * .0006; n.vy -= n.y * .0006; }
   for (const l of links) { const x = l.b.x - l.a.x, y = l.b.y - l.a.y, d = Math.hypot(x, y) + .01, f = (d - 90) * .003;
     l.a.vx += x / d * f * 8; l.a.vy += y / d * f * 8; l.b.vx -= x / d * f * 8; l.b.vy -= y / d * f * 8; }
-  for (const n of nodes) { if (n === drag) continue; n.x += n.vx * heat; n.y += n.vy * heat; n.vx *= .6; n.vy *= .6; }
+  for (const n of nodes) { if (n === drag) continue; n.vx = Math.max(-30, Math.min(30, n.vx)); n.vy = Math.max(-30, Math.min(30, n.vy)); n.x += n.vx * heat; n.y += n.vy * heat; n.vx *= .6; n.vy *= .6; }
   heat = Math.max(.02, heat * .985); }
 function size() { const r = cv.getBoundingClientRect(); Wd = r.width; Ht = r.height; cv.width = Wd * devicePixelRatio; cv.height = Ht * devicePixelRatio; }
 function draw() {

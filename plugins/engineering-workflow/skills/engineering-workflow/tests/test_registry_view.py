@@ -16,6 +16,36 @@ import registry_view as view
 LIVE = os.environ.get("HARNESS_NEO4J_TEST") == "1"
 
 
+def layout_step_source():
+    page = view.PAGE
+    start = page.index("function step() {")
+    end = page.index("function size()")
+    return page[start:end]
+
+
+class LayoutTests(unittest.TestCase):
+    def test_the_graph_layout_stays_bounded_on_a_dense_graph(self):
+        import shutil
+        import subprocess
+        node = shutil.which("node")
+        if node is None:
+            self.skipTest("node is not installed")
+        script = ("let heat = 1, drag = null;\n"
+                  "const nodes = [];\n"
+                  "for (let i = 0; i < 300; i++) nodes.push({id: 'n' + i, x: Math.random() * 900 - 450, y: Math.random() * 600 - 300, vx: 0, vy: 0, r: 4});\n"
+                  "const byId = {}; nodes.forEach(n => byId[n.id] = n);\n"
+                  "const links = []; for (let i = 1; i < 300; i++) links.push({a: nodes[0], b: nodes[i], k: 'x'});\n"
+                  "for (let i = 0; i < 600; i++) links.push({a: nodes[i % 300], b: nodes[(i * 7 + 3) % 300], k: 'x'});\n"
+                  + layout_step_source() +
+                  "for (let i = 0; i < 600; i++) step();\n"
+                  "const worst = Math.max(...nodes.map(n => Math.max(Math.abs(n.x), Math.abs(n.y))));\n"
+                  "console.log(nodes.every(n => isFinite(n.x) && isFinite(n.y)) ? worst : 'nonfinite');\n")
+        result = subprocess.run([node, "-e", script], capture_output=True, text=True, timeout=120)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotEqual(result.stdout.strip(), "nonfinite")
+        self.assertLess(float(result.stdout.strip()), 5000)
+
+
 class OfflineTests(unittest.TestCase):
     def test_decisions_keep_ids_and_times_only_and_tolerate_junk(self):
         with tempfile.TemporaryDirectory() as folder:
