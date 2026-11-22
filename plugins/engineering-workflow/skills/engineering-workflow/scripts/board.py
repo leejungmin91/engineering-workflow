@@ -19,6 +19,7 @@ ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}")
 STATUSES = ("doing", "todo", "blocked", "parked", "done")
 MARKS = {"done": "✓", "doing": "▶", "todo": "○", "blocked": "✕", "parked": "⏸"}
 BOARD = Path(".harness") / "board.json"
+RESOLVED = re.compile(r"^\W*decided\b|^~~|\[(?:done|resolved)\]", re.I)
 WAITING = re.compile(r"^## Waiting for the user.*?$(.*?)(?=^## |\Z)", re.S | re.M)
 PAGE = re.compile(r"[A-Za-z0-9_.-]+\.html")
 LABELS = {
@@ -225,6 +226,8 @@ def load(path):
     for item in listed:
         if not isinstance(item, dict):
             raise ValueError("decision must be an object")
+        if item.get("resolved") is True or RESOLVED.search(str(item.get("ask", "")).strip()):
+            continue
         decisions.append({"ask": text(item.get("ask"), "decision ask"),
                           "look": text(item.get("look"), "decision look", False),
                           "default": text(item.get("default"), "decision default", False),
@@ -518,7 +521,7 @@ def working_decisions(root):
         elif asks and line[:1].isspace() and line.strip():
             asks[-1] = f"{asks[-1]} {line.strip()}"
     return [{"ask": ask, "look": "", "default": "", "images": []} for ask in asks
-            if ask and ask.strip("().").lower() != "none"]
+            if ask and ask.strip("().").lower() != "none" and not RESOLVED.search(ask)]
 
 
 def counts(board):

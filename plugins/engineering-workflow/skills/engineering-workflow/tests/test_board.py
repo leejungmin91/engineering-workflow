@@ -263,6 +263,31 @@ class BoardTests(Case):
         drafts = (self.home / f"{name}-drafts.html").read_text(encoding="utf-8")
         self.assertEqual(drafts.count("<summary>docs/art/old"), 1)
 
+    def test_decided_and_marked_resolved_asks_are_not_shown_as_waiting(self):
+        self.save([task("a")])
+        (self.root / "WORKING.md").write_text(
+            "## Waiting for the user (parked decisions)\n\n"
+            "- **Decided 2026-11-21 (the user: ok):** the bridge is settled.\n"
+            "- The storage size is open: 40 or 60 places. Default: 40.\n"
+            "- ~~The old look question~~ answered.\n"
+            "- The shelter's roof is open [resolved] nothing to do.\n"
+            "- The bag's row count is open. Default: as built.\n", encoding="utf-8")
+        asks = [item["ask"] for item in board.working_decisions(self.root)]
+        self.assertEqual(asks, ["The storage size is open: 40 or 60 places. Default: 40.",
+                                "The bag's row count is open. Default: as built."])
+
+    def test_board_decisions_marked_resolved_are_left_out(self):
+        self.save([task("a")], decisions=[
+            {"ask": "Settled already", "resolved": True},
+            {"ask": "[resolved] Also settled"},
+            {"ask": "  ~~Struck question~~"},
+            {"ask": "Still open"}])
+        content = self.page()
+        self.assertIn("Still open", content)
+        self.assertNotIn("Settled already", content)
+        self.assertNotIn("Also settled", content)
+        self.assertNotIn("Struck question", content)
+
     def test_tasks_are_grouped_by_state_with_what_is_next(self):
         self.save([task("a", "done"), task("b", "doing"), task("c", after=["b"]), task("d", after=["a"]),
                    task("e", "blocked"), task("f", after=["e"])])
