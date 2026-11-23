@@ -19,6 +19,8 @@ LINKS = ("USES", "DISABLES", "INSTALLED", "PROVIDES", "HAS", "REQUIRES", "SUPERS
 REACH = "HAS|USES|INSTALLED|DISABLES"
 REMOVAL_FLOOR = 10
 REMOVAL_SHARE = 0.25
+NODE_FLOOR = 300
+NODE_SHARE = 0.2
 OPEN = ["todo", "doing", "blocked", "parked"]
 
 
@@ -149,9 +151,10 @@ def add_terms(rows):
             row["props"]["terms"] = terms
 
 
-def rewrite_nodes(store, files, paths):
+def rewrite_nodes(store, files, paths, keep=()):
     n = store.node
     props, kinds, sources = stated(files)
+    keep = sorted(keep)
     touched = {item["id"] for path in paths if path in files for item in files[path]["nodes"]}
     touched |= {row["id"] for row in store.run(
         f"MATCH (n:{n}) WHERE any(s IN coalesce(n.srcs, []) WHERE s IN $paths) RETURN n.id AS id", paths=paths)}
@@ -160,12 +163,19 @@ def rewrite_nodes(store, files, paths):
         by_type.setdefault(kinds[key], []).append({"id": key, "props": props[key], "srcs": sources[key]})
     add_terms([row for rows in by_type.values() for row in rows])
     for kind, rows in by_type.items():
-        store.run(f"UNWIND $rows AS row MERGE (n:{n} {{id: row.id}}) SET n = row.props, n:{label(kind)}, "
-                  "n.id = row.id, n.type = $kind, n.srcs = row.srcs", rows=rows, kind=kind)
+        store.run(f"UNWIND $rows AS row MERGE (n:{n} {{id: row.id}}) "
+                  "WITH n, row, [s IN coalesce(n.srcs, []) WHERE s IN $keep AND NOT s IN row.srcs] AS kept "
+                  "FOREACH (_ IN CASE WHEN size(kept) = 0 THEN [1] ELSE [] END | SET n = row.props) "
+                  "FOREACH (_ IN CASE WHEN size(kept) > 0 THEN [1] ELSE [] END | SET n += row.props) "
+                  f"SET n:{label(kind)}, n.id = row.id, n.type = $kind, n.srcs = row.srcs + kept",
+                  rows=rows, kind=kind, keep=keep)
     gone = sorted(touched - set(props))
     if gone:
-        store.run(f"UNWIND $ids AS id MATCH (n:{n} {{id: id}}) SET n = {{id: id, type: split(id, ':')[0], "
-                  "name: substring(id, size(split(id, ':')[0]) + 1), srcs: []}", ids=gone)
+        store.run(f"UNWIND $ids AS id MATCH (n:{n} {{id: id}}) WHERE any(s IN coalesce(n.srcs, []) WHERE s IN $keep) "
+                  "SET n.srcs = [s IN n.srcs WHERE NOT s IN $paths]", ids=gone, keep=keep, paths=paths)
+        store.run(f"UNWIND $ids AS id MATCH (n:{n} {{id: id}}) WHERE none(s IN coalesce(n.srcs, []) WHERE s IN $keep) "
+                  "SET n = {id: id, type: split(id, ':')[0], name: substring(id, size(split(id, ':')[0]) + 1), srcs: []}",
+                  ids=gone, keep=keep)
 
 
 def load_links(store, path, entry):
@@ -210,17 +220,18 @@ def sync(store, scanned, rebuild=False):
     f = store.file
     known = {row["path"]: row["hash"] for row in store.run(f"MATCH (f:{f}) RETURN f.path AS path, f.hash AS hash")}
     files = checked(scanned["files"])
-    changed = [path for path, entry in files.items() if known.get(path) != entry["hash"]]
+    skipped = [path for path, entry in files.items() if entry.get("error")]
+    changed = [path for path, entry in files.items() if not entry.get("error") and known.get(path) != entry["hash"]]
     removed = [path for path in known if path not in files]
-    if not rebuild and len(removed) > max(REMOVAL_FLOOR, len(known) * REMOVAL_SHARE):
-        return {"changed": [], "removed": [], "held": removed,
-                "skipped": [path for path, entry in files.items() if entry.get("error")], **counts(store)}
+    if not rebuild and (len(removed) > max(REMOVAL_FLOOR, len(known) * REMOVAL_SHARE)
+                        or losing(store, files, changed, removed)):
+        return {"changed": [], "removed": [], "held": changed + removed, "skipped": skipped, **counts(store)}
     held = []
     paths = changed + removed
     if paths:
         store.run(f"UNWIND $paths AS path MERGE (f:{f} {{path: path}}) SET f.hash = null", paths=paths)
         store.run(f"MATCH (:{store.node})-[r]->(:{store.node}) WHERE r.src IN $paths DELETE r", paths=paths)
-        rewrite_nodes(store, files, paths)
+        rewrite_nodes(store, files, paths, skipped)
     for path in changed:
         load_links(store, path, files[path])
     if removed:
@@ -228,8 +239,22 @@ def sync(store, scanned, rebuild=False):
     if paths:
         sweep(store)
         store.run("CALL db.index.fulltext.awaitEventuallyConsistentIndexRefresh()")
-    return {"changed": changed, "removed": removed, "held": held,
-            "skipped": [path for path, entry in files.items() if entry.get("error")], **counts(store)}
+    return {"changed": changed, "removed": removed, "held": held, "skipped": skipped, **counts(store)}
+
+
+def losing(store, files, changed, removed):
+    paths = changed + removed
+    if not paths:
+        return False
+    n = store.node
+    only = store.run(f"MATCH (n:{n}) WHERE all(s IN coalesce(n.srcs, []) WHERE s IN $paths) "
+                     "AND (size(coalesce(n.srcs, [])) > 0 OR EXISTS { (n)--() }) "
+                     "AND NOT EXISTS { MATCH (n)-[r]-() WHERE NOT r.src IN $paths } "
+                     "RETURN collect(n.id) AS ids", paths=paths)[0]["ids"]
+    stays = {item["id"] for path in changed for item in files[path]["nodes"]}
+    stays |= {end for path in changed for item in files[path]["links"] for end in (item["from"], item["to"])}
+    lost = len(set(only) - stays)
+    return lost > max(NODE_FLOOR, counts(store)["nodes"] * NODE_SHARE)
 
 
 def quoted(token):

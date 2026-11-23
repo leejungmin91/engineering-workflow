@@ -191,9 +191,84 @@ class LiveTests(unittest.TestCase):
         self.assertEqual(sorted(Path(path).name for path in report["skipped"]), ["zz-broken-link.md", "zz-hostile.md"])
         self.assertEqual(graph.resolve(self.store, "skill:pay"), ["skill:pay"])
         again = registry.refresh(self.store, str(self.config))
-        self.assertEqual(len(again["removed"]), 2)
+        self.assertEqual(again["removed"], [])
         self.assertEqual(graph.resolve(self.store, "skill:pay"), ["skill:pay"])
         self.assertEqual({key: again[key] for key in ("nodes", "links")}, {key: before[key] for key in ("nodes", "links")})
+
+    def test_a_file_that_turns_bad_keeps_what_it_stated_before(self):
+        scanned = registry.registry_scan.scan(json.loads(self.config.read_text(encoding="utf-8")))
+        path = next(key for key, entry in scanned["files"].items() if any(item["id"] == "skill:pay" for item in entry["nodes"]))
+        scanned["files"][path] = {**scanned["files"][path], "hash": "newer",
+                                  "nodes": scanned["files"][path]["nodes"] + [{"id": "skill:", "type": "skill"}]}
+        report = graph.sync(self.store, scanned)
+        self.assertIn(path, report["skipped"])
+        self.assertNotIn(path, report["changed"])
+        self.assertEqual(graph.resolve(self.store, "skill:pay"), ["skill:pay"])
+
+    def test_a_sync_that_would_wipe_many_nodes_is_held_until_a_rebuild(self):
+        scanned = registry.registry_scan.scan(json.loads(self.config.read_text(encoding="utf-8")))
+        many = [{"id": f"commit:shop/{number:07x}", "type": "commit", "name": f"c{number}"} for number in range(400)]
+        scanned["files"]["git:shop/2026-11"] = {"kind": "commits", "hash": "m1", "nodes": many, "links": []}
+        graph.sync(self.store, scanned)
+        before = graph.counts(self.store)["nodes"]
+        scanned["files"]["git:shop/2026-11"] = {"kind": "commits", "hash": "m2", "nodes": many[:3], "links": []}
+        held = graph.sync(self.store, scanned)
+        self.assertIn("git:shop/2026-11", held["held"])
+        self.assertEqual(graph.counts(self.store)["nodes"], before)
+        rebuilt = graph.sync(self.store, scanned, rebuild=True)
+        self.assertLess(rebuilt["nodes"], before)
+
+    def test_a_shared_node_keeps_a_skipped_files_source(self):
+        scanned = registry.registry_scan.scan(json.loads(self.config.read_text(encoding="utf-8")))
+        shared = {"id": "skill:shared-one", "type": "skill", "name": "shared-one"}
+        scanned["files"]["zz-a.md"] = {"kind": "skill", "hash": "a1", "nodes": [shared], "links": []}
+        scanned["files"]["zz-b.md"] = {"kind": "skill", "hash": "b1", "nodes": [shared], "links": []}
+        graph.sync(self.store, scanned)
+        scanned["files"]["zz-a.md"] = {"kind": "skill", "hash": "a2", "nodes": [shared, {"id": "skill:", "type": "skill"}],
+                                       "links": []}
+        scanned["files"]["zz-b.md"] = {"kind": "skill", "hash": "b2", "nodes": [], "links": []}
+        graph.sync(self.store, scanned)
+        self.assertEqual(graph.resolve(self.store, "skill:shared-one"), ["skill:shared-one"])
+        srcs = self.store.run(f"MATCH (n:{SPACE} {{id: 'skill:shared-one'}}) RETURN n.srcs AS srcs")[0]["srcs"]
+        self.assertEqual(srcs, ["zz-a.md"])
+
+    def test_a_skipped_files_properties_stay_on_a_shared_node(self):
+        scanned = registry.registry_scan.scan(json.loads(self.config.read_text(encoding="utf-8")))
+        scanned["files"]["zz-a.md"] = {"kind": "skill", "hash": "a1", "links": [], "nodes": [
+            {"id": "skill:shared-two", "type": "skill", "name": "shared-two", "model": "opus"}]}
+        scanned["files"]["zz-b.md"] = {"kind": "skill", "hash": "b1", "links": [], "nodes": [
+            {"id": "skill:shared-two", "type": "skill", "name": "shared-two"}]}
+        graph.sync(self.store, scanned)
+        scanned["files"]["zz-a.md"] = {**scanned["files"]["zz-a.md"], "hash": "a2",
+                                       "nodes": scanned["files"]["zz-a.md"]["nodes"] + [{"id": "skill:", "type": "skill"}]}
+        scanned["files"]["zz-b.md"] = {"kind": "skill", "hash": "b2", "links": [], "nodes": [
+            {"id": "skill:shared-two", "type": "skill", "name": "shared-two", "text": "new"}]}
+        graph.sync(self.store, scanned)
+        row = self.store.run(f"MATCH (n:{SPACE} {{id: 'skill:shared-two'}}) RETURN n.model AS model, n.text AS text")[0]
+        self.assertEqual((row["model"], row["text"]), ("opus", "new"))
+
+    def test_nodes_still_linked_by_another_file_are_not_counted_as_lost(self):
+        scanned = registry.registry_scan.scan(json.loads(self.config.read_text(encoding="utf-8")))
+        nodes = [{"id": f"skill:kept-{number}", "type": "skill", "name": f"kept-{number}"} for number in range(400)]
+        links = [{"from": "app:shop", "type": "HAS", "to": item["id"]} for item in nodes]
+        scanned["files"]["zz-decl.md"] = {"kind": "skill", "hash": "d1", "nodes": nodes, "links": []}
+        scanned["files"]["zz-link.md"] = {"kind": "skill", "hash": "k1", "nodes": [], "links": links}
+        graph.sync(self.store, scanned)
+        scanned["files"]["zz-decl.md"] = {"kind": "skill", "hash": "d2", "nodes": [], "links": []}
+        report = graph.sync(self.store, scanned)
+        self.assertEqual(report["held"], [])
+        self.assertEqual(graph.resolve(self.store, "skill:kept-1"), ["skill:kept-1"])
+
+    def test_link_only_nodes_count_toward_the_hold(self):
+        scanned = registry.registry_scan.scan(json.loads(self.config.read_text(encoding="utf-8")))
+        links = [{"from": "app:shop", "type": "HAS", "to": f"skill:lone-{number}"} for number in range(400)]
+        scanned["files"]["zz-links.md"] = {"kind": "skill", "hash": "l1", "nodes": [], "links": links}
+        graph.sync(self.store, scanned)
+        before = graph.counts(self.store)["nodes"]
+        del scanned["files"]["zz-links.md"]
+        held = graph.sync(self.store, scanned)
+        self.assertIn("zz-links.md", held["held"])
+        self.assertEqual(graph.counts(self.store)["nodes"], before)
 
     def test_duplicate_alias_lines_do_not_make_a_name_ambiguous(self):
         second = Path(self.fixture.tmp.name) / "glossary2.txt"
