@@ -221,8 +221,9 @@ class LiveTests(unittest.TestCase):
         self.config = Path(fixture.tmp.name) / "registry.json"
         fixtures.write(self.config, fixture.config)
         self.fixture = fixture
+        self.log = Path(fixture.tmp.name) / "hook-log"
         patch = mock.patch.dict(os.environ, {"HARNESS_REGISTRY_CONFIG": str(self.config), "HARNESS_REGISTRY_SPACE": SPACE,
-                                             "HARNESS_REGISTRY_HOOK_SYNC": "1"})
+                                             "HARNESS_REGISTRY_HOOK_SYNC": "1", "HARNESS_REGISTRY_LOG": str(self.log)})
         patch.start()
         self.addCleanup(patch.stop)
         os.environ.pop("HARNESS_REGISTRY_JUDGE", None)
@@ -230,6 +231,10 @@ class LiveTests(unittest.TestCase):
         self.store = graph.connect(SPACE)
         graph.drop(self.store)
         self.addCleanup(graph.drop, self.store)
+
+    def test_live_runs_log_to_their_own_folder(self):
+        hook.answer(event("store release build numbers review notes for the store release"))
+        self.assertTrue((self.log / "hook.jsonl").is_file())
 
     def test_prompt_gets_the_matching_skill_and_the_graph_is_synced_first(self):
         result = hook.answer({**event("store release build numbers review notes for the store release"),
