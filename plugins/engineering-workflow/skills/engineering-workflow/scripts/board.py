@@ -31,7 +31,7 @@ LABELS = {
         "all": "All boards", "drafts": "Drafts", "chosen": "Chosen draft", "archived": "Archived drafts", "nochosen": "No draft is chosen yet. Add its folder to \"chosen\" in .harness/drafts.json.", "project": "Project", "waiting": "Decisions", "empty": "No boards yet.",
         "list": "Tasks", "now": "Now", "next": "Next", "idle": "Nothing is in progress.", "stalled": "Looks stalled",
         "clear": "Nothing left to start.", "after": "after", "everyone": "Everyone", "records": "Recent work records",
-        "need": "Decisions", "ok": "Nothing blocked", "signal": "Signal", "focus": "Now", "on": "On track",
+        "need": "Decisions", "ok": "Nothing blocked", "signal": "Signal", "focus": "Now", "on": "On track", "more": "+{n} more",
         "order": "Boards with decisions or blocked work come first", "close": "Close", "picture": "Picture", "about": "About the drafts:", "nowTag": "Now", "draftTag": "Draft", "history": "Evidence: earlier drafts and commits", "earlierDraft": "Earlier draft", "why": "Why we ask", "path": "How it got here", "sources": "Sources",
         "prev": "Previous", "nextpic": "Next", "registry": "Registry: graph, judge, models, connection",
         "broken": "Board error: showing the last good state",
@@ -43,7 +43,7 @@ LABELS = {
         "all": "전체 보드", "drafts": "시안", "chosen": "선택된 시안", "archived": "보관된 시안", "nochosen": "아직 고른 시안이 없어요. .harness/drafts.json의 \"chosen\"에 폴더를 넣으면 여기에 보여요.", "project": "프로젝트", "waiting": "결정 대기", "empty": "아직 보드가 없어요.",
         "list": "작업", "now": "지금 하는 일", "next": "다음 차례", "idle": "진행 중인 작업이 없어요.", "stalled": "멈춘 것 같음",
         "clear": "남은 작업이 없어요.", "after": "다음", "everyone": "전체", "records": "최근 작업 기록",
-        "need": "결정 필요", "ok": "막힌 것 없음", "signal": "상태", "focus": "지금", "on": "문제 없음",
+        "need": "결정 필요", "ok": "막힌 것 없음", "signal": "상태", "focus": "지금", "on": "문제 없음", "more": "외 {n}개",
         "order": "정해 주실 것이나 막힌 일이 있는 보드가 위에 와요", "close": "닫기", "picture": "그림", "about": "시안 설명", "nowTag": "지금", "draftTag": "견본", "history": "예전 시안과 기록", "earlierDraft": "이전 시안", "why": "왜 물어보나요", "path": "지금까지 바뀐 과정", "sources": "자료",
         "prev": "이전", "nextpic": "다음", "registry": "등록부: 그래프, 판단, 모델, 연결",
         "broken": "보드 오류: 마지막 정상 상태를 보여 줘요",
@@ -136,7 +136,7 @@ dialog.viewer .bar2{display:flex;gap:8px;align-items:center;justify-content:cent
 dialog.viewer button{font:inherit;font-size:13px;border:0;border-radius:999px;padding:4px 12px;background:#2c2c2a;color:#f0efec;cursor:pointer}
 .records{padding-left:18px;margin:0;color:var(--ink2)}.records li{margin:4px 0}
 table{width:100%;border-collapse:collapse}th{text-align:left;font-size:12px;color:var(--muted);font-weight:600;padding:8px 14px}
-td{padding:12px 14px;border-top:1px solid var(--line);vertical-align:top}td .bar{margin:4px 0 0;max-width:160px}
+td{padding:12px 14px;border-top:1px solid var(--line);vertical-align:top}td:first-child{min-width:190px}td:first-child .meta{word-break:break-all}td:nth-child(2),td:nth-child(3){white-space:nowrap}td .bar{margin:4px 0 0;max-width:160px}
 @media (max-width:760px){.top{grid-template-columns:1fr}.row{grid-template-columns:22px 1fr}.row .id,.row .owner{display:none}
 .row details{grid-column:2}.opt{display:none}}
 """
@@ -948,7 +948,10 @@ def write(path, content):
 def summary(board, root, board_path, name, stamp, at):
     tally, total, percent = counts(board)
     _, doing, upcoming, _ = focus(board)
-    now = (" · ".join(f"{MARKS['doing']} {task['title']}" for task in doing) if doing else
+    shown = " · ".join(f"{MARKS['doing']} {task['title']}" for task in doing[:2])
+    if len(doing) > 2:
+        shown += f" · {LABELS[board['lang']]['more'].format(n=len(doing) - 2)}"
+    now = (shown if doing else
            f"{LABELS[board['lang']]['next']}: {upcoming[0]['title']}" if upcoming else "")
     return {"title": board["title"], "root": str(root), "board": str(board_path), "page": f"{name}.html",
             "percent": percent, "done": tally["done"], "total": total, "doing": tally["doing"],
@@ -1118,7 +1121,39 @@ def hook(event):
     return None
 
 
+def newest_copy():
+    here = Path(__file__).resolve()
+    if len(here.parents) < 5:
+        return None
+    version_dir = here.parents[3]
+    rel = here.relative_to(version_dir)
+
+    def number(path):
+        try:
+            return tuple(int(part) for part in path.name.split("."))
+        except ValueError:
+            return None
+
+    mine = number(version_dir)
+    if mine is None:
+        return None
+    best = None
+    try:
+        for other in version_dir.parent.iterdir():
+            found = number(other)
+            if found and found > mine and (other / rel).is_file() and (best is None or found > best[0]):
+                best = (found, other / rel)
+    except OSError:
+        return None
+    return best[1] if best else None
+
+
 def main():
+    if not os.environ.get("HARNESS_BOARD_NEWEST"):
+        newer = newest_copy()
+        if newer:
+            os.environ["HARNESS_BOARD_NEWEST"] = "1"
+            os.execv(sys.executable, [sys.executable, str(newer), *sys.argv[1:]])
     parser = argparse.ArgumentParser(description="Render a task board from .harness/board.json to one local HTML page.")
     commands = parser.add_subparsers(dest="command", required=True)
     draw = commands.add_parser("render", help="render a board file")

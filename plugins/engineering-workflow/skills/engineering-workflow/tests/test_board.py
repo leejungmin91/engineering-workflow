@@ -310,6 +310,26 @@ class BoardTests(Case):
         self.assertIn("docs/gallery/91_kiln/", details)
         self.assertNotIn("R2-06c", card[:card.index('class="detail"')])
 
+    def test_an_older_installed_copy_hands_over_to_the_newest_one(self):
+        cache = Path(self.tmp.name) / "cache" / "market" / "engineering-workflow"
+        rel = Path("skills") / "engineering-workflow" / "scripts" / "board.py"
+        old = cache / "0.6.9" / rel
+        new = cache / "0.6.40" / rel
+        old.parent.mkdir(parents=True)
+        new.parent.mkdir(parents=True)
+        old.write_text(Path(board.__file__).read_text(encoding="utf-8"), encoding="utf-8")
+        new.write_text("import sys\nprint('newest', *sys.argv[1:])\n", encoding="utf-8")
+        env = {key: value for key, value in os.environ.items() if key != "HARNESS_BOARD_NEWEST"}
+        result = subprocess.run([sys.executable, str(old), "render", "x"], capture_output=True, text=True, env=env, timeout=60)
+        self.assertEqual(result.stdout.strip(), "newest render x")
+
+    def test_the_overview_names_two_tasks_in_progress_and_counts_the_rest(self):
+        self.save([dict(task(name), status="doing") for name in "abcd"], lang="ko")
+        loaded = board.load(self.path)
+        entry = board.summary(loaded, self.root, self.path, "x", "", 0)
+        self.assertEqual(entry["focus"].count(board.MARKS["doing"]), 2)
+        self.assertIn("외 2개", entry["focus"])
+
     def test_tasks_are_grouped_by_state_with_what_is_next(self):
         self.save([task("a", "done"), task("b", "doing"), task("c", after=["b"]), task("d", after=["a"]),
                    task("e", "blocked"), task("f", after=["e"])])
