@@ -20,7 +20,8 @@ STATUSES = ("doing", "todo", "blocked", "parked", "done")
 MARKS = {"done": "✓", "doing": "▶", "todo": "○", "blocked": "✕", "parked": "⏸"}
 BOARD = Path(".harness") / "board.json"
 RESOLVED = re.compile(r"^\W*decided\b|^~~|\[(?:done|resolved)\]", re.I)
-WAITING = re.compile(r"^## Waiting for the user.*?$(.*?)(?=^## |\Z)", re.S | re.M)
+FENCE_OPEN = re.compile(r"^\s*(`{3,}[^`]*|~{3,}.*)$")
+FENCE_CLOSE = re.compile(r"^\s*(`{3,}|~{3,})\s*$")
 PAGE = re.compile(r"[A-Za-z0-9_.-]+\.html")
 LABELS = {
     "en": {
@@ -498,20 +499,27 @@ def copy_inside(path, base, target):
         os.close(handle)
 
 
+def waiting_text(body):
+    lines, waiting, fence = [], False, None
+    for line in body.splitlines():
+        if fence is None:
+            if line.startswith("## "):
+                waiting = line.startswith("## Waiting for the user")
+                continue
+            if FENCE_OPEN.match(line):
+                fence = re.match(r"^\s*(`{3,}|~{3,})", line).group(1)
+            elif waiting:
+                lines.append(line if line.strip() else "")
+            continue
+        closed = FENCE_CLOSE.match(line)
+        if closed and closed.group(1)[0] == fence[0] and len(closed.group(1)) >= len(fence):
+            fence = None
+    return "\n".join(lines)
+
+
 def waiting_items(body):
-    section = WAITING.search(body)
-    if not section:
-        return []
-    asks, fence = [], None
-    for line in section.group(1).splitlines():
-        mark = re.match(r"\s*(`{3,}|~{3,})", line)
-        if fence is None and mark:
-            fence = mark.group(1)
-            continue
-        if fence is not None:
-            if mark and mark.group(1)[0] == fence[0] and len(mark.group(1)) >= len(fence):
-                fence = None
-            continue
+    asks = []
+    for line in waiting_text(body).splitlines():
         if line.startswith("- "):
             asks.append(line[2:].strip())
         elif asks and line[:1].isspace() and line.strip():

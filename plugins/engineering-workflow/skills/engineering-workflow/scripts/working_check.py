@@ -10,47 +10,16 @@ import registry_judge_jev as jev
 SETTLED = 0.6
 CONTEXT_LIMIT = 20000
 MARKER = re.compile(r"\b(?:decided|no longer waiting|answered)\b", re.I)
-FENCE_OPEN = re.compile(r"^\s*(`{3,}[^`]*|~{3,}.*)$")
-FENCE_CLOSE = re.compile(r"^\s*(`{3,}|~{3,})\s*$")
-
-
-def scan(body):
-    lines, waiting, fence = [], False, None
-    for line in body.splitlines():
-        if fence is None:
-            if line.startswith("## "):
-                waiting = line.startswith("## Waiting for the user")
-                continue
-            opened = FENCE_OPEN.match(line)
-            if opened:
-                fence = re.match(r"^\s*(`{3,}|~{3,})", line).group(1)
-            elif waiting and line.strip():
-                lines.append(line)
-            elif waiting:
-                lines.append("")
-            continue
-        closed = FENCE_CLOSE.match(line)
-        if closed and closed.group(1)[0] == fence[0] and len(closed.group(1)) >= len(fence):
-            fence = None
-    return "\n".join(lines)
-
-
 def settled(part):
     return bool(MARKER.search(part) or board.RESOLVED.search(re.sub(r"^\s*-\s*", "", part.strip())))
 
 
 def entries(body):
-    found = []
-    for line in scan(body).splitlines():
-        if line.startswith("- "):
-            found.append(line[2:].strip())
-        elif found and line.startswith(" ") and line.strip():
-            found[-1] = f"{found[-1]} {line.strip()}"
-    return [item for item in found if item and item.strip("().").lower() != "none" and not board.RESOLVED.search(item)]
+    return [item for item in board.waiting_items(body) if not board.RESOLVED.search(item)]
 
 
 def decided_context(body):
-    parts = re.split(r"\n\s*\n|\n(?=- )", scan(body))
+    parts = re.split(r"\n\s*\n|\n(?=- )", board.waiting_text(body))
     return "\n\n".join(part for part in parts if settled(part))[:CONTEXT_LIMIT]
 
 

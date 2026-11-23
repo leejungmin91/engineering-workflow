@@ -288,6 +288,15 @@ class BoardTests(Case):
         self.assertNotIn("Also settled", content)
         self.assertNotIn("Struck question", content)
 
+    def test_the_dashboard_waiting_list_ignores_headings_and_items_inside_fences(self):
+        self.save([task("a")])
+        (self.root / "WORKING.md").write_text(
+            "## Waiting for the user (parked decisions)\n\n"
+            "```md\n## Example\n- An example inside the fence\n```python\n- Still inside\n```\n\n"
+            "- The real open question\n  continues here.\n\n## Notes\n\n- Not waiting\n", encoding="utf-8")
+        asks = [item["ask"] for item in board.working_decisions(self.root)]
+        self.assertEqual(asks, ["The real open question continues here."])
+
     def test_tasks_are_grouped_by_state_with_what_is_next(self):
         self.save([task("a", "done"), task("b", "doing"), task("c", after=["b"]), task("d", after=["a"]),
                    task("e", "blocked"), task("f", after=["e"])])
