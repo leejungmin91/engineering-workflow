@@ -16,7 +16,8 @@ Keep `.harness/board.json` at the project root and commit it with the work. It i
     {"id": "T3", "title": "Release notes", "status": "todo", "after": ["T2"]}
   ],
   "decisions": [
-    {"ask": "Ship behind a flag or to everyone", "look": "docs/release-plan.md", "default": "behind a flag"},
+    {"title": "Ship to everyone, or behind a flag first?", "ask": "The refund fix is ready. A flag lets a few users try it before everyone gets it.",
+     "default": "It stays behind the flag.", "look": "docs/release-plan.md", "detail": "T2, release-plan section 3"},
     {"ask": "Use ground sample 2: all, some, or none?", "default": "keep today's ground",
      "images": ["docs/review/31_ground_sample2_G2"],
      "why": "Problem: the user said the ground still looks awkward after sample A.\nResearch: ...\nSo the sample changes ... because ...\nChecked and worries: ...\nChoices: all, some (for example the patches only), none.",
@@ -33,6 +34,18 @@ Keep `.harness/board.json` at the project root and commit it with the work. It i
 - `decisions` holds what only the user can decide: what is asked, the picture or file to look at, and the default in use meanwhile. Bullet lines under `## Waiting for the user` in `WORKING.md` are shown as well, wrapped lines included, so a multi-session project keeps one list there. Set `"working_decisions": false` in the board when the board's own `decisions` are the list and that section holds notes the page should not repeat.
 - A decision that comes with pictures also says why the draft was made this way, in the user's language: `why` (one paragraph per line: the problem and the user's words, what was researched, what the draft changes and why this way, what was checked and what worries remain, the choices) and `history` (date and one line per step that led here). `sources` lists the documents behind it. These are written by the session that made the draft; nothing can generate them.
 - `lang` selects the page labels: `en` or `ko`. `owner` and `note` are optional.
+
+## Write it so anyone can read it
+
+The user reads the board between other work and should understand a card without knowing the code. Write board text like an explanation to a newcomer (ELI5), in the user's language:
+
+- `title`: the one thing to decide, as a short question ("가마 모습, 이대로 써도 될까요?"). No task codes, file paths or numbers.
+- `ask`: two or three plain sentences: what changed and how it looks or behaves. Numbers only when they are the decision.
+- `why`: why the user is asked, in a sentence or two ("모양은 눈으로 봐야 정할 수 있어서요."), not a rule's name.
+- `default`: one sentence on what stays meanwhile ("지금 모습 그대로 둬요.").
+- `detail`: task codes, measurements and other references; the page shows them with `look` in small print under the card.
+- Task `title`: what the task does, in words ("초막의 보이는 크기와 실제로 부딪히는 범위 맞추기"); the `id` already carries the code. `note`: one plain sentence in the user's language; keep technical notes in the work record.
+- Korean boards use 해요체 throughout, matching the page's labels; do not mix it with 합니다체 or with English notes.
 
 ## When to update it
 
@@ -52,7 +65,7 @@ What the page shows, top first:
 
 - The title with what needs the user: the number of decisions and of blocked tasks, or a "nothing blocked" chip. Beside it, how long ago the board file changed; it turns amber after a day.
 - Three cards: what is in progress now; what comes next (todo tasks whose `after` tasks are done, or, when none is ready, the waiting ones with what they wait for); and progress as a percentage with a bar split by state and a legend that gives every count.
-- The decisions, numbered, each with its default and the file to look at. On the page a decision shows, in this order: why it was made this way, how it got here, its sources, an "about the drafts" line (the heading of the section that shows the pictures in the gallery page), the pictures with their captions, and folded evidence (earlier drafts in the same series, matched by the letter code and a shared word in the folder name, and the commits that changed those folders, oldest first). A comparison picture whose file name says `now_above_sample_below` or `before_left_after_right` (or whose caption says 위 = 지금, 아래 = 견본) carries "now" and "draft" labels on its halves, also when opened large. Pictures show as small previews: a picture path in `look` or in an optional `images` list, every picture in a folder named there, and the pictures a named `.html` or `.md` document shows (`<img src>`, `![](...)`, links to pictures, resolved from the document's folder); a click opens the picture large, with previous and next for the decision's other pictures, and Esc or a click outside closes it. Only files inside the project, up to 20 MB and eight per decision, are shown. They are copied to `assets/` beside the page, so the page also works when the board folder is served. The page does not reload while a picture is open.
+- The decisions, numbered: the `title` in bold with the `ask` under it (or the `ask` alone), the default, and at the bottom a small "details" line with `detail` and `look`. On the page a decision also shows, in this order: why it was made this way, how it got here, its sources, an "about the drafts" line (the heading of the section that shows the pictures in the gallery page), the pictures with their captions, and folded evidence (earlier drafts in the same series, matched by the letter code and a shared word in the folder name, and the commits that changed those folders, oldest first). A comparison picture whose file name says `now_above_sample_below` or `before_left_after_right` (or whose caption says 위 = 지금, 아래 = 견본) carries "now" and "draft" labels on its halves, also when opened large. Pictures show as small previews: a picture path in `look` or in an optional `images` list, every picture in a folder named there, and the pictures a named `.html` or `.md` document shows (`<img src>`, `![](...)`, links to pictures, resolved from the document's folder); a click opens the picture large, with previous and next for the decision's other pictures, and Esc or a click outside closes it. Only files inside the project, up to 20 MB and eight per decision, are shown. They are copied to `assets/` beside the page, so the page also works when the board folder is served. The page does not reload while a picture is open.
 - The tasks grouped by state (in progress, blocked, parked, to do), each group with its count. A task waiting on others says which. Done tasks are folded. Long notes show one line and open on click. With two or more owners, buttons filter by owner.
 - The newest five work records in `.harness/records/`.
 

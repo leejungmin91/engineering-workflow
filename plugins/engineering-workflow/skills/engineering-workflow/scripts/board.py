@@ -26,27 +26,27 @@ PAGE = re.compile(r"[A-Za-z0-9_.-]+\.html")
 LABELS = {
     "en": {
         "progress": "Progress", "of": "of", "tasks": "tasks done", "doing": "In progress", "todo": "To do",
-        "blocked": "Blocked", "parked": "Parked", "done": "Done", "decisions": "Waiting for your decision",
-        "none": "Nothing is waiting for you.", "look": "Look at", "default": "Default", "updated": "Updated",
+        "blocked": "Blocked", "parked": "Parked", "done": "Done", "decisions": "Needs your decision",
+        "none": "Nothing is waiting for you.", "look": "Look at", "default": "If you don't answer", "detail": "Details", "updated": "Updated",
         "all": "All boards", "drafts": "Drafts", "chosen": "Chosen draft", "archived": "Archived drafts", "nochosen": "No draft is chosen yet. Add its folder to \"chosen\" in .harness/drafts.json.", "project": "Project", "waiting": "Decisions", "empty": "No boards yet.",
         "list": "Tasks", "now": "Now", "next": "Next", "idle": "Nothing is in progress.", "stalled": "Looks stalled",
         "clear": "Nothing left to start.", "after": "after", "everyone": "Everyone", "records": "Recent work records",
         "need": "Decisions", "ok": "Nothing blocked", "signal": "Signal", "focus": "Now", "on": "On track",
-        "order": "Boards with decisions or blocked work come first", "close": "Close", "picture": "Picture", "about": "About the drafts:", "nowTag": "Now", "draftTag": "Draft", "history": "Evidence: earlier drafts and commits", "earlierDraft": "Earlier draft", "why": "Why it was made this way", "path": "How it got here", "sources": "Sources",
+        "order": "Boards with decisions or blocked work come first", "close": "Close", "picture": "Picture", "about": "About the drafts:", "nowTag": "Now", "draftTag": "Draft", "history": "Evidence: earlier drafts and commits", "earlierDraft": "Earlier draft", "why": "Why we ask", "path": "How it got here", "sources": "Sources",
         "prev": "Previous", "nextpic": "Next", "registry": "Registry: graph, judge, models, connection",
         "broken": "Board error: showing the last good state",
     },
     "ko": {
         "progress": "전체 진행률", "of": "/", "tasks": "작업 완료", "doing": "진행 중", "todo": "남은 일",
-        "blocked": "막힘", "parked": "보류", "done": "끝남", "decisions": "결정을 기다리는 일",
-        "none": "기다리는 결정이 없습니다.", "look": "볼 것", "default": "기본값", "updated": "갱신",
-        "all": "전체 보드", "drafts": "시안", "chosen": "선택된 시안", "archived": "보관된 시안", "nochosen": "아직 선택한 시안이 없습니다. .harness/drafts.json의 \"chosen\"에 폴더를 추가하세요.", "project": "프로젝트", "waiting": "결정 대기", "empty": "아직 보드가 없습니다.",
-        "list": "작업", "now": "지금 하는 일", "next": "다음 차례", "idle": "진행 중인 작업이 없습니다.", "stalled": "멈춘 것 같음",
-        "clear": "남은 작업이 없습니다.", "after": "다음", "everyone": "전체", "records": "최근 작업 기록",
-        "need": "결정 필요", "ok": "막힌 것 없음", "signal": "신호", "focus": "지금", "on": "순조",
-        "order": "결정이나 막힘이 있는 보드가 위에 옵니다", "close": "닫기", "picture": "그림", "about": "시안 설명", "nowTag": "지금", "draftTag": "견본", "history": "근거: 이전 시안과 커밋", "earlierDraft": "이전 시안", "why": "왜 이렇게 만들었나", "path": "지나온 과정", "sources": "자료",
+        "blocked": "막힘", "parked": "보류", "done": "끝남", "decisions": "정해 주셔야 할 것",
+        "none": "지금은 정해 주실 것이 없어요.", "look": "확인할 자료", "default": "답이 없으면", "detail": "자세히", "updated": "갱신",
+        "all": "전체 보드", "drafts": "시안", "chosen": "선택된 시안", "archived": "보관된 시안", "nochosen": "아직 고른 시안이 없어요. .harness/drafts.json의 \"chosen\"에 폴더를 넣으면 여기에 보여요.", "project": "프로젝트", "waiting": "결정 대기", "empty": "아직 보드가 없어요.",
+        "list": "작업", "now": "지금 하는 일", "next": "다음 차례", "idle": "진행 중인 작업이 없어요.", "stalled": "멈춘 것 같음",
+        "clear": "남은 작업이 없어요.", "after": "다음", "everyone": "전체", "records": "최근 작업 기록",
+        "need": "결정 필요", "ok": "막힌 것 없음", "signal": "상태", "focus": "지금", "on": "문제 없음",
+        "order": "정해 주실 것이나 막힌 일이 있는 보드가 위에 와요", "close": "닫기", "picture": "그림", "about": "시안 설명", "nowTag": "지금", "draftTag": "견본", "history": "예전 시안과 기록", "earlierDraft": "이전 시안", "why": "왜 물어보나요", "path": "지금까지 바뀐 과정", "sources": "자료",
         "prev": "이전", "nextpic": "다음", "registry": "등록부: 그래프, 판단, 모델, 연결",
-        "broken": "보드 오류: 마지막 정상 상태를 보여 줍니다",
+        "broken": "보드 오류: 마지막 정상 상태를 보여 줘요",
     },
 }
 BAR_ORDER = ("done", "doing", "parked", "blocked", "todo")
@@ -90,7 +90,7 @@ background:var(--surface);box-shadow:inset 0 0 0 1px var(--ring);color:var(--ink
 .bar{display:flex;gap:2px;height:8px;margin:12px 0 8px}.bar span{border-radius:999px;min-width:4px}
 .legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--ink2)}
 .legend i{display:inline-block;width:8px;height:8px;border-radius:999px;margin-right:5px}
-section{margin-top:24px}.decisions{display:grid;gap:8px}
+section{margin-top:24px}.decisions{display:grid;gap:8px}.decision>*:not(.n){grid-column:2;min-width:0}.decision .plain{margin:6px 0 0}.decision .fallback{margin:6px 0 0}.decision .detail{margin:10px 0 0;font-size:12px;color:var(--muted);word-break:break-all}
 .decision{display:grid;grid-template-columns:28px 1fr;gap:2px 10px;padding:12px 14px;background:var(--surface);
 border-radius:12px;box-shadow:inset 0 0 0 1px var(--ring)}
 .decision .n{grid-row:span 2;color:var(--warn-ink);font-weight:650;font-size:13px}.decision b{font-weight:600}
@@ -230,6 +230,8 @@ def load(path):
         if item.get("resolved") is True or RESOLVED.search(str(item.get("ask", "")).strip()):
             continue
         decisions.append({"ask": text(item.get("ask"), "decision ask"),
+                          "title": text(item.get("title"), "decision title", False),
+                          "detail": text(item.get("detail"), "decision detail", False),
                           "look": text(item.get("look"), "decision look", False),
                           "default": text(item.get("default"), "decision default", False),
                           "images": images(item.get("images", [])),
@@ -672,8 +674,9 @@ def render(board, root, stamp, refresh=5, at=0):
 
     asks = []
     for number, item in enumerate(board["decisions"], 1):
-        extra = (f"<span class=\"chip\">{esc(words['default'])}: {esc(item['default'])}</span>" if item["default"] else "")
-        extra += f"<span>{esc(words['look'])}: {esc(item['look'])}</span>" if item["look"] else ""
+        extra = (f"<p class=\"fallback\"><b>{esc(words['default'])}</b> {esc(item['default'])}</p>" if item["default"] else "")
+        fine = " · ".join(esc(part) for part in (item.get("detail"), item["look"]) if part)
+        fine = f"<p class=\"detail\">{esc(words['detail'])}: {fine}</p>" if fine else ""
         thumbs = "".join(
             f"<figure class=\"shot\"><button class=\"{esc(' '.join(['thumb'] + ([pic['layout']] if pic.get('layout') else [])))}\" type=\"button\" data-full=\"{esc(pic['src'])}\" "
             f"data-layout=\"{esc(pic.get('layout') or '')}\" "
@@ -705,8 +708,10 @@ def render(board, root, stamp, refresh=5, at=0):
             thumbs += (f"<details class=\"history\" id=\"history-{number}\"><summary>{esc(words['history'])}</summary>"
                        f"<ol>{steps}</ol></details>")
         thumbs = reason + thumbs
-        asks.append(f"<div class=\"decision\"><span class=\"n\">{number}</span><b>{esc(item['ask'])}</b>"
-                    f"<div class=\"more\">{extra}</div>{thumbs}</div>")
+        head = (f"<b>{esc(item['title'])}</b><p class=\"plain\">{esc(item['ask'])}</p>" if item.get("title")
+                else f"<b>{esc(item['ask'])}</b>")
+        asks.append(f"<div class=\"decision\"><span class=\"n\">{number}</span>{head}"
+                    f"<div class=\"more\">{extra}</div>{thumbs}{fine}</div>")
     count = f"<span class=\"chip warn\">{len(asks)}</span>" if asks else ""
     if any(item.get("pictures") for item in board["decisions"]):
         body += (f"<dialog class=\"viewer\" aria-label=\"{esc(words['picture'])}\"><div class=\"frame\"><img alt=\"\">"

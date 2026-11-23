@@ -297,6 +297,19 @@ class BoardTests(Case):
         asks = [item["ask"] for item in board.working_decisions(self.root)]
         self.assertEqual(asks, ["The real open question continues here."])
 
+    def test_a_decision_title_leads_and_codes_and_paths_sit_in_the_details(self):
+        self.save([task("a")], lang="ko", decisions=[{
+            "title": "가마 모습, 이대로 써도 될까요?", "ask": "고르신 돌 화덕을 가마로 넣었어요.",
+            "default": "지금 모습 그대로 둬요.", "look": "docs/gallery/91_kiln/", "detail": "R2-06c"}])
+        card = self.page().split('class="decision"')[1]
+        words = board.LABELS["ko"]
+        self.assertLess(card.index("가마 모습, 이대로 써도 될까요?"), card.index("고르신 돌 화덕을"))
+        self.assertLess(card.index(words["default"]), card.index('class="detail"'))
+        details = card[card.index('class="detail"'):]
+        self.assertIn("R2-06c", details)
+        self.assertIn("docs/gallery/91_kiln/", details)
+        self.assertNotIn("R2-06c", card[:card.index('class="detail"')])
+
     def test_tasks_are_grouped_by_state_with_what_is_next(self):
         self.save([task("a", "done"), task("b", "doing"), task("c", after=["b"]), task("d", after=["a"]),
                    task("e", "blocked"), task("f", after=["e"])])
@@ -524,8 +537,9 @@ class BoardTests(Case):
             "why": "문제: 땅이 어색하다는 말\n그래서 <b>세 가지</b>만 넣음", "sources": ["docs/research.md"],
             "history": [{"date": "11-17", "text": "G1을 만듦"}, {"date": "지금", "text": "결정을 기다림"}, "junk"]}])
         card = self.page().split('class="decision"')[1]
-        self.assertLess(card.index("왜 이렇게 만들었나"), card.index("지나온 과정"))
-        self.assertLess(card.index("지나온 과정"), card.index('class="thumbs"'))
+        words = board.LABELS["ko"]
+        self.assertLess(card.index(words["why"]), card.index(words["path"]))
+        self.assertLess(card.index(words["path"]), card.index('class="thumbs"'))
         self.assertIn("<p>그래서 &lt;b&gt;세 가지&lt;/b&gt;만 넣음</p>", card)
         self.assertIn("<code>docs/research.md</code>", card)
         evidence = card[card.index('class="history"'):]
