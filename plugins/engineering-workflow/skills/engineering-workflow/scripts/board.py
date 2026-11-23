@@ -498,11 +498,7 @@ def copy_inside(path, base, target):
         os.close(handle)
 
 
-def working_decisions(root):
-    try:
-        body = (Path(root) / "WORKING.md").read_text(encoding="utf-8")
-    except OSError:
-        return []
+def waiting_items(body):
     section = WAITING.search(body)
     if not section:
         return []
@@ -520,8 +516,16 @@ def working_decisions(root):
             asks.append(line[2:].strip())
         elif asks and line[:1].isspace() and line.strip():
             asks[-1] = f"{asks[-1]} {line.strip()}"
-    return [{"ask": ask, "look": "", "default": "", "images": []} for ask in asks
-            if ask and ask.strip("().").lower() != "none" and not RESOLVED.search(ask)]
+    return [ask for ask in asks if ask and ask.strip("().").lower() != "none"]
+
+
+def working_decisions(root):
+    try:
+        body = (Path(root) / "WORKING.md").read_text(encoding="utf-8")
+    except OSError:
+        return []
+    return [{"ask": ask, "look": "", "default": "", "images": []} for ask in waiting_items(body)
+            if not RESOLVED.search(ask)]
 
 
 def counts(board):
