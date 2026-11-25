@@ -35,6 +35,7 @@ LABELS = {
         "order": "Boards with decisions or blocked work come first", "close": "Close", "picture": "Picture", "about": "About the drafts:", "nowTag": "Now", "draftTag": "Draft", "history": "Evidence: earlier drafts and commits", "earlierDraft": "Earlier draft", "why": "Why we ask", "path": "How it got here", "sources": "Sources",
         "prev": "Previous", "nextpic": "Next", "registry": "Registry: graph, judge, models, connection",
         "broken": "Board error: showing the last good state",
+        "listen": "Listen to the options", "listenAll": "{n} files, opens in a new tab", "skipped": "{n} files were left out because they are too large or too many.", "back": "Back to the board", "pick": "Tell the number of the one you pick.",
     },
     "ko": {
         "progress": "전체 진행률", "of": "/", "tasks": "작업 완료", "doing": "진행 중", "todo": "남은 일",
@@ -47,12 +48,19 @@ LABELS = {
         "order": "정해 주실 것이나 막힌 일이 있는 보드가 위에 와요", "close": "닫기", "picture": "그림", "about": "시안 설명", "nowTag": "지금", "draftTag": "견본", "history": "예전 시안과 기록", "earlierDraft": "이전 시안", "why": "왜 물어보나요", "path": "지금까지 바뀐 과정", "sources": "자료",
         "prev": "이전", "nextpic": "다음", "registry": "등록부: 그래프, 판단, 모델, 연결",
         "broken": "보드 오류: 마지막 정상 상태를 보여 줘요",
+        "listen": "후보 듣기", "listenAll": "{n}개, 새 탭에서 열려요", "skipped": "{n}개는 너무 크거나 많아서 빠졌어요.", "back": "보드로 돌아가기", "pick": "마음에 드는 것의 번호를 알려 주세요.",
     },
 }
 BAR_ORDER = ("done", "doing", "parked", "blocked", "todo")
 PICTURE_BYTES = 20 * 1024 * 1024
 PICTURES = 8
 PICTURE_KINDS = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg")
+SOUND_KINDS = (".ogg", ".oga", ".opus", ".wav", ".mp3", ".flac", ".m4a", ".aac")
+VIDEO_KINDS = (".mp4", ".webm", ".mov", ".m4v")
+MEDIA_FILES = 200
+MEDIA_BYTES = 100 * 1024 * 1024
+MEDIA_TOTAL = 600 * 1024 * 1024
+NATURAL = re.compile(r"(\d+)")
 DOCUMENT_KINDS = (".html", ".htm", ".md")
 PATH_WORD = re.compile(r"`([^`\n]+)`|([^\s`'\"()<>,;]+)")
 EMBED_START = re.compile(r"\]\(|\b(?:src|href)\s*=\s*", re.I)
@@ -90,7 +98,7 @@ background:var(--surface);box-shadow:inset 0 0 0 1px var(--ring);color:var(--ink
 .bar{display:flex;gap:2px;height:8px;margin:12px 0 8px}.bar span{border-radius:999px;min-width:4px}
 .legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--ink2)}
 .legend i{display:inline-block;width:8px;height:8px;border-radius:999px;margin-right:5px}
-section{margin-top:24px}.decisions{display:grid;gap:8px}.decision>*:not(.n){grid-column:2;min-width:0}.decision .plain{margin:6px 0 0}.decision .fallback{margin:6px 0 0}.decision .detail{margin:10px 0 0;font-size:12px;color:var(--muted);word-break:break-all}
+section{margin-top:24px}.decisions{display:grid;gap:8px}.decision>*:not(.n){grid-column:2;min-width:0}.decision .plain{margin:6px 0 0}.decision .fallback{margin:6px 0 0}.decision .detail{margin:10px 0 0;font-size:12px;color:var(--muted);word-break:break-all}.listen-link{margin:8px 0 0}.listen{list-style:none;padding:0;display:grid;gap:8px}.listen li{display:grid;grid-template-columns:32px 1fr;gap:8px;padding:10px;border-radius:10px;background:var(--surface);box-shadow:0 0 0 1px var(--ring)}.listen audio{width:100%;margin-top:6px}.listen video{max-width:100%;margin-top:6px}
 .decision{display:grid;grid-template-columns:28px 1fr;gap:2px 10px;padding:12px 14px;background:var(--surface);
 border-radius:12px;box-shadow:inset 0 0 0 1px var(--ring)}
 .decision .n{grid-row:span 2;color:var(--warn-ink);font-weight:650;font-size:13px}.decision b{font-weight:600}
@@ -235,6 +243,8 @@ def load(path):
                           "look": text(item.get("look"), "decision look", False),
                           "default": text(item.get("default"), "decision default", False),
                           "images": images(item.get("images", [])),
+                          "sounds": images(item.get("sounds", []), "sounds"),
+                          "sounds_label": text(item.get("sounds_label"), "decision sounds_label", False),
                           "why": text(item.get("why"), "decision why", False),
                           "steps": [{"date": text(step.get("date"), "history date", False), "text": text(step.get("text"), "history text")}
                                             for step in (item.get("history") if isinstance(item.get("history"), list) else []) if isinstance(step, dict)],
@@ -254,9 +264,9 @@ def sources(value):
     return [entry.strip() for entry in value if entry.strip()]
 
 
-def images(value):
+def images(value, field="images"):
     if not isinstance(value, list) or not all(isinstance(entry, str) and 0 < len(entry) <= 500 for entry in value):
-        raise ValueError("decision images must be a list of paths")
+        raise ValueError(f"decision {field} must be a list of paths")
     return list(value)
 
 
@@ -481,20 +491,115 @@ def pictures(item, root, folder):
     return found
 
 
-def copy_inside(path, base, target):
+def natural(name):
+    return [int(part) if part.isdigit() else part.lower() for part in NATURAL.split(name)]
+
+
+def media_files(item, base):
+    kinds = SOUND_KINDS + VIDEO_KINDS
+    for word in item.get("sounds", []):
+        path = inside(base, word)
+        if path is None or not path.exists():
+            continue
+        if path.is_file():
+            if path.suffix.lower() in kinds:
+                yield path
+            continue
+        found = []
+        try:
+            with os.scandir(path) as entries:
+                for count, entry in enumerate(entries):
+                    if count >= FOLDER_ENTRIES:
+                        break
+                    if os.path.splitext(entry.name)[1].lower() in kinds and entry.is_file(follow_symlinks=False):
+                        found.append(entry.name)
+        except OSError:
+            continue
+        yield from (path / name for name in sorted(found, key=natural))
+
+
+def media(item, root, folder):
+    base = Path(root).resolve()
+    found, seen, skipped, total = [], set(), 0, 0
+    for path in media_files(item, base):
+        if path in seen:
+            continue
+        seen.add(path)
+        try:
+            info = path.stat()
+        except OSError:
+            continue
+        if len(found) >= MEDIA_FILES or info.st_size > MEDIA_BYTES or total + info.st_size > MEDIA_TOTAL:
+            skipped += 1
+            continue
+        name = hashlib.sha256(f"{path}\n{info.st_mtime_ns}\n{info.st_size}".encode("utf-8")).hexdigest()[:16]
+        target = Path(folder) / "assets" / f"{name}{path.suffix.lower()}"
+        try:
+            if not target.is_file():
+                copy_inside(path, base, target, min(MEDIA_BYTES, MEDIA_TOTAL - total))
+            size = target.stat().st_size
+        except OSError:
+            skipped += 1
+            continue
+        if total + size > MEDIA_TOTAL:
+            skipped += 1
+            continue
+        total += size
+        found.append({"src": f"assets/{target.name}", "name": str(path.relative_to(base)),
+                      "video": path.suffix.lower() in VIDEO_KINDS})
+    return found, skipped
+
+
+def listen_name(root, item, back):
+    key = json.dumps([str(Path(root).resolve()), back, item.get("title"), item["ask"], item.get("sounds", [])], ensure_ascii=False)
+    return f"listen-{hashlib.sha256(key.encode('utf-8')).hexdigest()[:12]}.html"
+
+
+def listen_page(board, item, back, words):
+    esc = html.escape
+    rows = []
+    stems = [Path(clip["name"]).stem for clip in item["media"]]
+    leads = [re.match(r"\d+", stem) for stem in stems]
+    own = all(leads) and len({int(lead.group()) for lead in leads}) == len(leads)
+    for number, clip in enumerate(item["media"], 1):
+        tag = "video" if clip["video"] else "audio"
+        label = str(int(leads[number - 1].group())) if own else str(number)
+        rows.append(f"<li><span class=\"n\">{esc(label)}</span><div><b>{esc(stems[number - 1])}</b>"
+                    f"<div class=\"meta\">{esc(clip['name'])}</div>"
+                    f"<{tag} controls preload=\"none\" src=\"{esc(clip['src'])}\"></{tag}></div></li>")
+    skipped = (f"<p class=\"quiet\">{esc(words['skipped'].format(n=item['media_skipped']))}</p>"
+               if item.get("media_skipped") else "")
+    title = item.get("title") or item["ask"]
+    body = (f"<header><h1>{esc(item.get('sounds_label') or words['listen'])}</h1>"
+            f"<a class=\"chip\" href=\"{esc(urllib.parse.quote(back))}#decisions\">{esc(words['back'])}</a></header>"
+            f"<p><b>{esc(title)}</b></p><p class=\"quiet\">{esc(words['pick'])}</p>{skipped}"
+            f"<ol class=\"listen\">{''.join(rows)}</ol>"
+            "<script>document.addEventListener('play',(e)=>{document.querySelectorAll('audio,video').forEach((m)=>{if(m!==e.target)m.pause();});},true);</script>")
+    return page(f"{title} - {board['title']}", body, 0, board["lang"])
+
+
+def copy_inside(path, base, target, limit=PICTURE_BYTES):
     handle = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
     try:
         opened = os.fstat(handle)
         now = Path(os.path.realpath(path))
         now.relative_to(base)
-        if not stat.S_ISREG(opened.st_mode) or opened.st_size > PICTURE_BYTES or \
+        if not stat.S_ISREG(opened.st_mode) or opened.st_size > limit or \
                 (opened.st_dev, opened.st_ino) != (now.stat().st_dev, now.stat().st_ino):
             raise OSError("the picture changed while it was read")
         target.parent.mkdir(parents=True, exist_ok=True)
         spare = target.with_name(f"{target.name}.{os.getpid()}.tmp")
-        with os.fdopen(os.dup(handle), "rb") as source, open(spare, "wb") as sink:
-            shutil.copyfileobj(source, sink, 1 << 20)
-        spare.replace(target)
+        try:
+            with os.fdopen(os.dup(handle), "rb") as source, open(spare, "wb") as sink:
+                copied = 0
+                while chunk := source.read(1 << 20):
+                    copied += len(chunk)
+                    if copied > limit:
+                        raise OSError("the file grew past the limit while it was read")
+                    sink.write(chunk)
+            spare.replace(target)
+        finally:
+            spare.unlink(missing_ok=True)
     except ValueError as error:
         raise OSError("the picture left the project") from error
     finally:
@@ -677,6 +782,12 @@ def render(board, root, stamp, refresh=5, at=0):
         extra = (f"<p class=\"fallback\"><b>{esc(words['default'])}</b> {esc(item['default'])}</p>" if item["default"] else "")
         fine = " · ".join(esc(part) for part in (item.get("detail"), item["look"]) if part)
         fine = f"<p class=\"detail\">{esc(words['detail'])}: {fine}</p>" if fine else ""
+        if item.get("listen"):
+            extra += (f"<p class=\"listen-link\"><a class=\"chip good\" href=\"{esc(item['listen'])}\" target=\"_blank\" rel=\"noopener\">"
+                      f"▶ {esc(item.get('sounds_label') or words['listen'])}</a> "
+                      f"<span class=\"quiet\">{esc(words['listenAll'].format(n=len(item['media'])))}</span></p>")
+        elif item.get("media_skipped"):
+            extra += f"<p class=\"listen-link\"><span class=\"chip warn\">{esc(words['skipped'].format(n=item['media_skipped']))}</span></p>"
         thumbs = "".join(
             f"<figure class=\"shot\"><button class=\"{esc(' '.join(['thumb'] + ([pic['layout']] if pic.get('layout') else [])))}\" type=\"button\" data-full=\"{esc(pic['src'])}\" "
             f"data-layout=\"{esc(pic.get('layout') or '')}\" "
@@ -959,7 +1070,7 @@ def summary(board, root, board_path, name, stamp, at):
             "stamp": stamp, "at": at, "lang": board["lang"]}
 
 
-def draw(board_path, root, folder):
+def draw(board_path, root, folder, back=None):
     board = load(board_path)
     board["source"] = str(Path(board_path).resolve())
     if board["working_decisions"]:
@@ -968,6 +1079,11 @@ def draw(board_path, root, folder):
     for item in board["decisions"]:
         item["pictures"] = pictures(item, root, folder)
         item["evidence"] = evidence_for(item, Path(root).resolve(), deadline)
+        item["media"], item["media_skipped"] = media(item, root, folder) if item.get("sounds") else ([], 0)
+        if item["media"]:
+            back = back or f"{slug(root)}.html"
+            item["listen"] = listen_name(root, item, back)
+            write(Path(folder) / item["listen"], listen_page(board, item, back, LABELS[board["lang"]]))
         for entry in item["evidence"]["earlier"]:
             if entry["picture"]:
                 copied = pictures({"images": [str(entry["picture"])]}, root, folder)
@@ -982,7 +1098,7 @@ def publish(board_path, root=None, out=None):
     root = Path(os.path.abspath(root)) if root else (
         board_path.parent.parent if board_path.parent.name == BOARD.parent.name else board_path.parent)
     folder, name = (Path(out).parent, None) if out else (home(), slug(root))
-    board, stamp, at = draw(board_path, root, folder)
+    board, stamp, at = draw(board_path, root, folder, Path(out).name if out else f"{name}.html")
     content = render(board, root, stamp, at=at)
     if out:
         write(Path(out), content)
@@ -1009,7 +1125,7 @@ def publish(board_path, root=None, out=None):
                      or "error" in entry or ("drafts" in entry) != config.is_file())
             if listed.stem != name and stale and slug(entry["root"]) == listed.stem:
                 try:
-                    again, again_stamp, again_at = draw(other, Path(entry["root"]), folder)
+                    again, again_stamp, again_at = draw(other, Path(entry["root"]), folder, f"{listed.stem}.html")
                     write(folder / f"{listed.stem}.html", render(again, Path(entry["root"]), again_stamp, at=again_at))
                     entry = summary(again, Path(entry["root"]), other, listed.stem, again_stamp, again_at)
                     refreshed = drafts_content(Path(entry["root"]), folder, again["lang"], listed.stem)

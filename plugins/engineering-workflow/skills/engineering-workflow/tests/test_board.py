@@ -870,5 +870,112 @@ class HookTests(Case):
                 board.launch(self.path)
 
 
+class MediaTests(Case):
+    def sounds(self, names, folder="candidates/A3"):
+        place = self.root / folder
+        place.mkdir(parents=True, exist_ok=True)
+        for name in names:
+            (place / name).write_bytes(b"RIFF" + name.encode())
+        return folder
+
+    def listen(self, content):
+        link = content.split('class="listen-link"><a class="chip good" href="')[1].split('"')[0]
+        return link, (self.home / link).read_text(encoding="utf-8")
+
+    def test_sound_folder_becomes_a_numbered_listening_page_opened_in_a_new_tab(self):
+        folder = self.sounds(["10_wind.ogg", "2_fire.wav", "1_rain.mp3", "notes.txt"])
+        self.save([task("a")], lang="ko", decisions=[{"ask": "소리 고르기", "sounds": [folder], "sounds_label": "후보 듣기"}])
+        content = self.page()
+        self.assertIn('target="_blank" rel="noopener">▶ 후보 듣기</a>', content)
+        self.assertIn("3개, 새 탭에서 열려요", content)
+        link, listen = self.listen(content)
+        self.assertIn('data-refresh="0"', listen)
+        names = [part.split("</b>")[0] for part in listen.split("<b>")[2:]]
+        self.assertEqual(["1_rain", "2_fire", "10_wind"], names)
+        numbers = [part.split("</span>")[0] for part in listen.split('<li><span class="n">')[1:]]
+        self.assertEqual(["1", "2", "10"], numbers)
+        self.assertEqual(3, listen.count("<audio controls"))
+        for src in [part.split('"')[0] for part in listen.split('src="assets/')[1:]]:
+            self.assertTrue((self.home / "assets" / src).is_file())
+        self.assertIn(f'href="{board.slug(self.root)}.html#decisions"', listen)
+
+    def test_names_without_their_own_distinct_numbers_are_numbered_in_order(self):
+        folder = self.sounds(["01_a.mp3", "1_b.mp3", "wind.mp3"])
+        self.save([task("a")], decisions=[{"ask": "Pick", "sounds": [folder]}])
+        link, listen = self.listen(self.page())
+        numbers = [part.split("</span>")[0] for part in listen.split('<li><span class="n">')[1:]]
+        self.assertEqual(["1", "2", "3"], numbers)
+
+    def test_sounds_outside_the_project_or_too_large_are_left_out(self):
+        outside = self.root.parent / "elsewhere.mp3"
+        outside.write_bytes(b"x")
+        folder = self.sounds(["a.mp4", "b.mp3", "c.mp3"])
+        self.save([task("a")], decisions=[{"ask": "Pick", "sounds": [str(outside), "../elsewhere.mp3", folder]}])
+        with mock.patch.object(board, "MEDIA_TOTAL", 2 * len(b"RIFFa.mp4")):
+            content = self.page()
+        link, listen = self.listen(content)
+        self.assertNotIn("elsewhere", listen)
+        self.assertEqual(1, listen.count("<audio controls"))
+        self.assertEqual(1, listen.count("<video controls"))
+        self.assertIn("1 files were left out", listen)
+
+    def test_no_sounds_means_no_listening_button(self):
+        self.save([task("a")], decisions=[{"ask": "Pick", "sounds": ["missing"]}])
+        self.assertNotIn('class="listen-link"', self.page())
+        self.assertEqual([], list(self.home.glob("listen-*.html")))
+
+    def test_two_decisions_with_the_same_title_keep_their_own_listening_pages(self):
+        first, second = self.sounds(["1_a.mp3"], "c/one"), self.sounds(["1_b.mp3"], "c/two")
+        self.save([task("a")], decisions=[{"title": "Pick", "ask": "Pick", "sounds": [first]},
+                                          {"title": "Pick", "ask": "Pick", "sounds": [second]}])
+        content = self.page()
+        links = [part.split('"')[0] for part in content.split('class="listen-link"><a class="chip good" href="')[1:]]
+        self.assertEqual(2, len(set(links)))
+        self.assertIn("c/one/1_a.mp3", (self.home / links[0]).read_text(encoding="utf-8"))
+        self.assertIn("c/two/1_b.mp3", (self.home / links[1]).read_text(encoding="utf-8"))
+
+    def test_a_named_output_page_is_the_listening_page_back_link(self):
+        folder = self.sounds(["1_a.mp3"])
+        self.save([task("a")], decisions=[{"ask": "Pick", "sounds": [folder]}])
+        out = self.home / "review.html"
+        content = board.publish(self.path, out=out).read_text(encoding="utf-8")
+        link = content.split('class="listen-link"><a class="chip good" href="')[1].split('"')[0]
+        self.assertIn('href="review.html#decisions"', (self.home / link).read_text(encoding="utf-8"))
+        other = board.publish(self.path, out=self.home / "review#2.html").read_text(encoding="utf-8")
+        second = other.split('class="listen-link"><a class="chip good" href="')[1].split('"')[0]
+        self.assertNotEqual(link, second)
+        self.assertIn('href="review.html#decisions"', (self.home / link).read_text(encoding="utf-8"))
+        self.assertIn('href="review%232.html#decisions"', (self.home / second).read_text(encoding="utf-8"))
+
+    def test_a_file_that_grows_past_the_limit_while_copied_is_left_out(self):
+        source = self.root / "big.mp3"
+        source.write_bytes(b"x" * 64)
+        target = self.home / "assets" / "big.mp3"
+        real = os.fstat
+
+        def small(handle):
+            info = list(real(handle))
+            info[6] = 1
+            return os.stat_result(info)
+
+        with mock.patch.object(board.os, "fstat", small), self.assertRaises(OSError):
+            board.copy_inside(source, self.root, target, 32)
+        self.assertFalse(target.exists())
+        self.assertEqual([], list((self.home / "assets").glob("*.tmp")))
+
+    def test_a_card_says_so_when_every_sound_was_left_out(self):
+        folder = self.sounds(["1_a.mp3"])
+        self.save([task("a")], decisions=[{"ask": "Pick", "sounds": [folder]}])
+        with mock.patch.object(board, "MEDIA_BYTES", 2):
+            content = self.page()
+        self.assertIn('<span class="chip warn">1 files were left out', content)
+        self.assertEqual([], list(self.home.glob("listen-*.html")))
+
+    def test_sounds_must_be_a_list_of_paths(self):
+        self.save([task("a")], decisions=[{"ask": "Pick", "sounds": "candidates"}])
+        with self.assertRaises(ValueError):
+            board.load(self.path)
+
+
 if __name__ == "__main__":
     unittest.main()
