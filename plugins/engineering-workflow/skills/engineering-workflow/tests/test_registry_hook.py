@@ -48,11 +48,22 @@ class OfflineTests(unittest.TestCase):
                 mock.patch.object(graph, "connect", return_value=mock.Mock()):
             return hook.answer(event(prompt))
 
-    def test_a_sync_already_running_is_not_waited_for(self):
+    def test_a_long_sync_runs_on_in_its_own_process_after_the_hook_answers(self):
+        child = mock.Mock()
+        child.wait.side_effect = subprocess.TimeoutExpired("sync", hook.SYNC_WAIT)
         with mock.patch.dict(os.environ, {"HARNESS_REGISTRY_HOOK_SYNC": "1"}), \
-                mock.patch.object(registry, "refresh", side_effect=registry.Busy("busy")) as refresh:
-            self.answer("오래 걸리는 동기화가 돌고 있을 때 훅은 기다리지 않는다")
-        self.assertEqual(refresh.call_args.kwargs, {"wait": False, "limit": hook.SYNC_LIMIT})
+                mock.patch.object(hook.subprocess, "Popen", return_value=child) as popen, \
+                mock.patch.object(registry, "refresh") as refresh:
+            result = self.answer("오래 걸리는 동기화가 돌고 있을 때 훅은 기다리지 않는다", scored=[row("skill:a", 9.0)])
+        self.assertIn("skill:a", result["hookSpecificOutput"]["additionalContext"])
+        self.assertFalse(refresh.called)
+        command = popen.call_args.args[0]
+        self.assertEqual(command[-2:], ["sync", "--from-hook"])
+        self.assertTrue(command[1].endswith("registry.py"))
+        self.assertTrue(popen.call_args.kwargs["start_new_session"])
+        self.assertLessEqual(child.wait.call_args.kwargs["timeout"], hook.SYNC_WAIT)
+        child.kill.assert_not_called()
+        child.terminate.assert_not_called()
 
     def test_local_judge_keeps_strong_matches_and_at_most_three(self):
         scored = [row("skill:a", 9.0), row("skill:b", 7.0), row("skill:c", 6.0), row("rule:d", 4.0)]

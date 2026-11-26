@@ -70,6 +70,25 @@ def refresh(store, given, rebuild=False, wait=True, limit=None):
         return graph.sync(store, scanned, rebuild, limit)
 
 
+def log_sync(report, seconds):
+    folder = os.environ.get("HARNESS_REGISTRY_LOG")
+    sizes = {key: len(report.get(key) or []) for key in ("changed", "removed", "held", "skipped")}
+    if not folder or not any(sizes.values()):
+        return
+    try:
+        path = Path(folder).expanduser()
+        path.mkdir(parents=True, exist_ok=True)
+        target = path / "sync.jsonl"
+        if target.exists() and not target.is_file():
+            return
+        line = {"at": time.strftime("%Y-%m-%dT%H:%M:%S"), "seconds": round(seconds, 2), **sizes,
+                **{key: report.get(key) for key in ("nodes", "links", "files")}}
+        with open(target, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(line) + "\n")
+    except OSError:
+        return
+
+
 def join(*parts):
     return "  ".join(str(part) for part in parts if part not in (None, "", []))
 
@@ -199,10 +218,17 @@ def main(argv=None):
             one.add_argument("--attribution", action="store_true", help="only what needs credit, a notice, or a check")
     commands.add_parser("unused")
     commands.add_parser("status")
-    commands.add_parser("sync").add_argument("--rebuild", action="store_true")
+    syncing = commands.add_parser("sync")
+    syncing.add_argument("--rebuild", action="store_true")
+    syncing.add_argument("--from-hook", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     try:
         store = graph.connect(args.space)
+        if args.command == "sync" and args.from_hook:
+            started = time.monotonic()
+            report = refresh(store, args.config, wait=False)
+            log_sync(report, time.monotonic() - started)
+            return 0
         if args.command == "sync":
             settings = json.loads(config_path(args.config).read_text(encoding="utf-8"))
             if settings.get("usage"):

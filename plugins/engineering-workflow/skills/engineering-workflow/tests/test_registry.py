@@ -112,6 +112,27 @@ class OfflineTests(unittest.TestCase):
             self.assertFalse(status.called)
             self.assertIn("REGISTRY UNAVAILABLE: Busy", err.getvalue())
 
+    def test_a_sync_from_the_hook_never_waits_has_no_file_limit_and_logs_what_it_did(self):
+        with tempfile.TemporaryDirectory() as folder:
+            config = Path(folder) / "registry.json"
+            config.write_text(json.dumps({"apps": [], "usage": str(Path(folder) / "usage.json")}), encoding="utf-8")
+            log = Path(folder) / "log"
+            report = {"changed": ["a"] * 140, "removed": [], "held": [], "skipped": [], "nodes": 5, "links": 7, "files": 9}
+            with mock.patch.dict(os.environ, {"HARNESS_REGISTRY_LOG": str(log)}), \
+                    mock.patch.object(graph, "connect", return_value=mock.Mock()), \
+                    mock.patch.object(registry, "refresh", return_value=report) as refresh, \
+                    mock.patch.object(registry.registry_usage, "update") as usage:
+                self.assertEqual(registry.main(["--config", str(config), "sync", "--from-hook"]), 0)
+                refresh.return_value = {**report, "changed": []}
+                self.assertEqual(registry.main(["--config", str(config), "sync", "--from-hook"]), 0)
+                refresh.side_effect = registry.Busy("busy")
+                with redirect_stderr(io.StringIO()):
+                    self.assertEqual(registry.main(["--config", str(config), "sync", "--from-hook"]), 2)
+            self.assertEqual(refresh.call_args.kwargs, {"wait": False})
+            self.assertFalse(usage.called)
+            lines = [json.loads(line) for line in (log / "sync.jsonl").read_text(encoding="utf-8").splitlines()]
+            self.assertEqual([(line["changed"], line["links"]) for line in lines], [(140, 7)])
+
     def test_unreachable_server_exits_2_without_a_traceback(self):
         errors = io.StringIO()
         with mock.patch.dict(os.environ, {"HARNESS_NEO4J_URL": "http://127.0.0.1:9", "HARNESS_NEO4J_PASSWORD": "x"}):

@@ -19,7 +19,7 @@ LIMIT = 3
 FETCH = 8
 OFFER = 6
 TALK_OFFER = 3
-SYNC_LIMIT = 25
+SYNC_WAIT = 3.0
 MIN_SCORE = 5.0
 SHARE = 0.7
 KINDS = ("skill", "record", "rule", "talk")
@@ -135,6 +135,20 @@ def record(event):
         return
 
 
+def start_sync(seconds):
+    command = [sys.executable, str(Path(__file__).resolve().parent / "registry.py"), "sync", "--from-hook"]
+    try:
+        child = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                 stderr=subprocess.DEVNULL, start_new_session=True)
+    except OSError:
+        return None
+    try:
+        child.wait(timeout=max(seconds, 0))
+    except subprocess.TimeoutExpired:
+        pass
+    return child
+
+
 def answer(event):
     if not isinstance(event, dict) or event.get("hook_event_name") != "UserPromptSubmit":
         return None
@@ -148,10 +162,7 @@ def answer(event):
     store.timeout = 3
     store.deadline = started + BUDGET
     if os.environ.get("HARNESS_REGISTRY_HOOK_SYNC", "1") != "0":
-        try:
-            registry.refresh(store, None, wait=False, limit=SYNC_LIMIT)
-        except (OSError, ValueError, KeyError, TypeError, registry.Busy):
-            pass
+        start_sync(min(SYNC_WAIT, started + BUDGET - time.monotonic()))
     cwd = event.get("cwd")
     named, scored = candidates(store, prompt, os.environ.get("CLAUDE_PROJECT_DIR") or (cwd if isinstance(cwd, str) else None))
     judge, how = os.environ.get("HARNESS_REGISTRY_JUDGE"), "local"
