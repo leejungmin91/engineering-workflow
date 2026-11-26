@@ -8,6 +8,7 @@ The plugin registers five hooks on installation (`hooks/hooks.json`). One commit
 | `board` | `SessionStart`, `PostToolUse`, `Stop` | When `.harness/board.json` exists, render the progress board, open it once per session, and redraw it when the file changes. |
 | `registry_hook` | `UserPromptSubmit` | When a registry config exists, attach at most three matching skills, rules, or work records to the prompt. Never blocks, never stores the prompt. |
 | `talk_save` | `PreCompact`, `SessionEnd` | Save the user's messages and the replies since the last save to `~/.cache/engineering-workflow/talk/<app>/` for the registry to index. Never blocks, writes nothing to the repository. |
+| `relay` | `PreToolUse` (Bash, Write, Edit, MultiEdit, NotebookEdit) | Refuse typing into another terminal pane and edits to session transcripts, so a relayed quote checked by `relay.py verify` really is what the user typed. See the [multi-session guide](multi-session.md). |
 | `notices` | `UserPromptSubmit` | Show each session, once, the [machine notices](shared-machine.md#notices) it has not seen, and warn at most hourly when free disk space is below `HARNESS_DISK_MIN_GB` (default 10). |
 
 How `auto_commit_push` behaves:
