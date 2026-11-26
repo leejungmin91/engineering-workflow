@@ -1,5 +1,5 @@
 {
-  "description": "Engineering Workflow hooks render the progress board when a project has one, attach registry candidates to a prompt when a registry is configured, and commit and push the work left in the repository when the assistant finishes a turn.",
+  "description": "Engineering Workflow hooks render the progress board when a project has one, attach registry candidates to a prompt when a registry is configured, show each session the machine notices it has not seen and a warning when the disk is nearly full, and commit and push the work left in the repository when the assistant finishes a turn.",
   "hooks": {
     "SessionStart": [
       {
@@ -48,6 +48,11 @@
             "type": "command",
             "timeout": 10,
             "command": "command -v python3 >/dev/null 2>&1 && python3 \"${CLAUDE_PLUGIN_ROOT}/skills/engineering-workflow/scripts/registry_hook.py\" || true"
+          },
+          {
+            "type": "command",
+            "timeout": 5,
+            "command": "command -v python3 >/dev/null 2>&1 && python3 \"${CLAUDE_PLUGIN_ROOT}/skills/engineering-workflow/scripts/notices.py\" hook || true"
           }
         ]
       }

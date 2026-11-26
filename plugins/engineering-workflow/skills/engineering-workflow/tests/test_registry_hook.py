@@ -193,6 +193,7 @@ class OfflineTests(unittest.TestCase):
         self.assertEqual(len(lines), 2)
         self.assertEqual(json.loads(lines[0])["chosen"], ["skill:a"])
         self.assertEqual(json.loads(lines[1])["chosen"], [])
+        self.assertEqual((json.loads(lines[0])["top"], json.loads(lines[1])["top"]), ("skill:a", None))
         self.assertNotIn("private", "".join(lines))
         self.assertNotIn("refunds", "".join(lines))
 
@@ -206,10 +207,12 @@ class OfflineTests(unittest.TestCase):
     def test_hook_is_registered_and_quiet_without_python(self):
         hooks = json.loads((HERE.parents[2] / "hooks" / "hooks.json").read_text(encoding="utf-8"))["hooks"]
         commands = [item["command"] for group in hooks["UserPromptSubmit"] for item in group["hooks"]]
-        self.assertEqual(len(commands), 1)
+        self.assertEqual(len(commands), 2)
         self.assertIn("registry_hook.py", commands[0])
-        self.assertTrue(commands[0].startswith("command -v python3"))
-        self.assertTrue(commands[0].endswith("|| true"))
+        self.assertIn("notices.py\\\" hook", json.dumps(commands[1]))
+        for command in commands:
+            self.assertTrue(command.startswith("command -v python3"))
+            self.assertTrue(command.endswith("|| true"))
 
 
 @unittest.skipUnless(LIVE, "set HARNESS_NEO4J_TEST=1 with a local graph server to run")

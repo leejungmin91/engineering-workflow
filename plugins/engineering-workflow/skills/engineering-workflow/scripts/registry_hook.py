@@ -164,6 +164,7 @@ def answer(event):
         chosen = local_judge(named, scored)
     record({"at": time.strftime("%Y-%m-%dT%H:%M:%S"), "judge": how, "seconds": round(time.monotonic() - started, 2),
             "judge_seconds": judged, "offered": len(named) + len(scored), "top_score": scored[0]["score"] if scored else None,
+            "top": scored[0]["id"] if scored else None,
             "chosen": [row["id"] for row in chosen]})
     if not chosen:
         return None

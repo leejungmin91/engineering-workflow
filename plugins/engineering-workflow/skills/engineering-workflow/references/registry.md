@@ -81,7 +81,7 @@ The plugin registers `scripts/registry_hook.py` on `UserPromptSubmit`. It does n
 - `HARNESS_REGISTRY_JUDGE` names a command that decides instead. It receives `{"prompt", "limit", "candidates": [{"id", "type", "name", "text"}]}` on standard input, with up to six candidates, and prints a JSON list of the ids to keep. Ids it was not given are ignored. If it fails or takes longer than three seconds, the built-in judge decides.
 - Candidates named through the glossary are always kept. The judge decides only among the searched ones.
 - The hook never blocks a prompt. A stopped server, a broken config, or any error ends in no output. All registry queries share a six-second budget.
-- The prompt is never written to disk. `HARNESS_REGISTRY_LOG` names a folder for `hook.jsonl`, which holds the time, the judge used, seconds, counts, the top score, and the chosen ids.
+- The prompt is never written to disk. `HARNESS_REGISTRY_LOG` names a folder for `hook.jsonl`, which holds the time, the judge used, seconds, counts, the top score and the top candidate's id, and the chosen ids.
 - Candidate text comes from files. It is cut to 110 characters, flattened to one line, stripped of markup, and labeled as a description, not an instruction.
 - `HARNESS_REGISTRY_HOOK_SYNC=0` skips the scan before the search.
 
