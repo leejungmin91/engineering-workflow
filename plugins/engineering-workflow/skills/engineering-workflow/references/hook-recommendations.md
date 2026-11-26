@@ -1,12 +1,13 @@
 # Hooks
 
-The plugin registers four hooks on installation (`hooks/hooks.json`). One commits and pushes finished work on personal projects. One keeps the [progress board](board.md) drawn and open in projects that have a board file. One attaches [registry](registry.md#prompt-hook) candidates to a prompt when a registry is configured. One shows [machine notices](shared-machine.md) and warns when the disk is nearly full.
+The plugin registers five hooks on installation (`hooks/hooks.json`). One commits and pushes finished work on personal projects. One keeps the [progress board](board.md) drawn and open in projects that have a board file. One attaches [registry](registry.md#prompt-hook) candidates to a prompt when a registry is configured. One shows [machine notices](shared-machine.md) and warns when the disk is nearly full. One saves the conversation to local [notes](registry.md#conversation-notes) before it is summarised and when a session ends.
 
 | Hook | Event | Purpose |
 | --- | --- | --- |
 | `auto_commit_push` | `Stop` | At the end of a turn, commit remaining changes and push local commits. |
 | `board` | `SessionStart`, `PostToolUse`, `Stop` | When `.harness/board.json` exists, render the progress board, open it once per session, and redraw it when the file changes. |
 | `registry_hook` | `UserPromptSubmit` | When a registry config exists, attach at most three matching skills, rules, or work records to the prompt. Never blocks, never stores the prompt. |
+| `talk_save` | `PreCompact`, `SessionEnd` | Save the user's messages and the replies since the last save to `~/.cache/engineering-workflow/talk/<app>/` for the registry to index. Never blocks, writes nothing to the repository. |
 | `notices` | `UserPromptSubmit` | Show each session, once, the [machine notices](shared-machine.md#notices) it has not seen, and warn at most hourly when free disk space is below `HARNESS_DISK_MIN_GB` (default 10). |
 
 How `auto_commit_push` behaves:

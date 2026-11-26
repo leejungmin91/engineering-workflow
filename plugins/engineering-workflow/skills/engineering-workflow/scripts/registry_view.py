@@ -87,7 +87,7 @@ WORDS = {
 TYPES = {
     "en": {},
     "ko": {"app": "앱", "skill": "스킬", "rule": "규칙", "plugin": "플러그인", "tool": "도구", "model": "모델", "task": "작업",
-           "decision": "결정", "record": "작업 기록", "commit": "커밋", "asset": "에셋", "source": "출처", "license": "라이선스",
+           "decision": "결정", "record": "작업 기록", "commit": "커밋", "asset": "에셋", "source": "출처", "license": "라이선스", "talk": "대화",
            "session": "세션", "machine": "기기", "term": "용어", "checkout": "작업 사본"},
 }
 

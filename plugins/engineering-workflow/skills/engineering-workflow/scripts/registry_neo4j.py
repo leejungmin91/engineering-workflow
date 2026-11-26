@@ -12,7 +12,7 @@ import registry_text
 NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*")
 RESERVED = {"id", "type", "from", "to"}
 TYPES = ("app", "plugin", "skill", "tool", "model", "task", "decision", "record", "commit", "asset", "source", "rule",
-         "term", "checkout", "session", "machine", "license")
+         "term", "checkout", "session", "machine", "license", "talk")
 LINKS = ("USES", "DISABLES", "INSTALLED", "PROVIDES", "HAS", "REQUIRES", "SUPERSEDES", "PREFERS", "AFTER", "IN",
          "AFFECTS", "FOR", "USED", "RAN_ON", "PRODUCED", "CONCERNS", "REVIEWED_BY", "VERSION_OF", "FROM", "MADE_BY",
          "APPROVED", "APPLIES_TO", "ALIAS_OF", "HOLDS", "ON", "UNDER", "INVOKED")
@@ -213,7 +213,7 @@ def drop(store):
     store.run(f"MATCH (n) WHERE n:{store.node} OR n:{store.file} DETACH DELETE n")
 
 
-def sync(store, scanned, rebuild=False):
+def sync(store, scanned, rebuild=False, limit=None):
     prepare(store)
     if rebuild:
         drop(store)
@@ -223,7 +223,8 @@ def sync(store, scanned, rebuild=False):
     skipped = [path for path, entry in files.items() if entry.get("error")]
     changed = [path for path, entry in files.items() if not entry.get("error") and known.get(path) != entry["hash"]]
     removed = [path for path in known if path not in files]
-    if not rebuild and (len(removed) > max(REMOVAL_FLOOR, len(known) * REMOVAL_SHARE)
+    too_many = limit is not None and len(changed) + len(removed) > limit
+    if not rebuild and (too_many or len(removed) > max(REMOVAL_FLOOR, len(known) * REMOVAL_SHARE)
                         or losing(store, files, changed, removed)):
         return {"changed": [], "removed": [], "held": changed + removed, "skipped": skipped, **counts(store)}
     held = []

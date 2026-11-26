@@ -218,6 +218,19 @@ class LiveTests(unittest.TestCase):
         rebuilt = graph.sync(self.store, scanned, rebuild=True)
         self.assertLess(rebuilt["nodes"], before)
 
+    def test_a_hook_sync_with_too_many_changed_files_touches_nothing(self):
+        links = graph.counts(self.store)["links"]
+        scanned = registry.registry_scan.scan(json.loads(self.config.read_text(encoding="utf-8")))
+        for entry in scanned["files"].values():
+            entry["hash"] = "new scanner " + entry["hash"]
+        held = graph.sync(self.store, scanned, limit=2)
+        self.assertEqual(held["changed"], [])
+        self.assertEqual(len(held["held"]), len(scanned["files"]))
+        self.assertEqual(graph.counts(self.store)["links"], links)
+        done = graph.sync(self.store, scanned)
+        self.assertEqual(len(done["changed"]), len(scanned["files"]))
+        self.assertEqual(done["links"], links)
+
     def test_a_shared_node_keeps_a_skipped_files_source(self):
         scanned = registry.registry_scan.scan(json.loads(self.config.read_text(encoding="utf-8")))
         shared = {"id": "skill:shared-one", "type": "skill", "name": "shared-one"}

@@ -74,13 +74,14 @@ The page reloads itself every minute. Draw it again on a schedule or after `sync
 
 ## Prompt hook
 
-The plugin registers `scripts/registry_hook.py` on `UserPromptSubmit`. It does nothing unless a registry config exists. With one, it searches skills, rules, and work records for the prompt and attaches at most three candidates as a short hint.
+The plugin registers `scripts/registry_hook.py` on `UserPromptSubmit`. It does nothing unless a registry config exists. With one, it searches skills, rules, work records, and conversation notes for the prompt and attaches at most three candidates as a short hint.
 
 - Skills and rules are attached only when the app at the working directory can reach them. Outside a listed app, only user-level skills and rules pass. Work records from any app can be attached, because earlier work elsewhere is the point.
 - The built-in judge keeps a candidate when its score is at least 5 and at least 70% of the best score. It is word matching, so it stays quiet rather than guess. On 40 real prompts it attached candidates to 6.
 - `HARNESS_REGISTRY_JUDGE` names a command that decides instead. It receives `{"prompt", "limit", "candidates": [{"id", "type", "name", "text"}]}` on standard input, with up to six candidates, and prints a JSON list of the ids to keep. Ids it was not given are ignored. If it fails or takes longer than three seconds, the built-in judge decides.
 - Candidates named through the glossary are always kept. The judge decides only among the searched ones.
 - The hook never blocks a prompt. A stopped server, a broken config, or any error ends in no output. All registry queries share a six-second budget.
+- The hook refreshes the graph before searching, but only when at most 25 files changed. A larger change (a plugin update that changes the scanner, a new app) is left for `registry.py sync`, because the hook's few seconds cannot rewrite it and a cut-off rewrite left skills unlinked.
 - The prompt is never written to disk. `HARNESS_REGISTRY_LOG` names a folder for `hook.jsonl`, which holds the time, the judge used, seconds, counts, the top score and the top candidate's id, and the chosen ids.
 - Candidate text comes from files. It is cut to 110 characters, flattened to one line, stripped of markup, and labeled as a description, not an instruction.
 - `HARNESS_REGISTRY_HOOK_SYNC=0` skips the scan before the search.
@@ -113,9 +114,12 @@ To write another judge, read the same JSON on standard input and print a JSON li
   "apps": [{"name": "shop", "path": "/absolute/path/to/shop"}],
   "user": "/absolute/path/to/.claude",
   "plugins": ["/absolute/path/to/a/plugin"],
-  "glossary": "/absolute/path/to/glossary.txt"
+  "glossary": "/absolute/path/to/glossary.txt",
+  "talk": "/absolute/path/to/.cache/engineering-workflow/talk"
 }
 ```
+
+`talk` turns on [conversation notes](#conversation-notes). Leave it out to index none.
 
 | Environment variable | Default |
 | --- | --- |
@@ -125,6 +129,12 @@ To write another judge, read the same JSON on standard input and print a JSON li
 | `HARNESS_NEO4J_PASSWORD` | macOS keychain item `harness-neo4j` |
 
 The store uses the HTTP query API and the standard library only.
+
+## Conversation notes
+
+A long session is summarised when its context fills, and what was said but never written to a record, the board, or `WORKING.md` fades from it. The plugin's `PreCompact` and `SessionEnd` hooks run `scripts/talk_save.py`, which saves the part of the conversation not saved yet: each user message as written (system reminders, command echoes, sub-agent turns, and earlier summaries left out) and the last reply before the next message, cut to 1,500 and 1,200 characters. Notes go to `~/.cache/engineering-workflow/talk/<app>/` (`HARNESS_TALK`), split so each is under the index's 4,000-character body limit, and never into a repository. A note's app is the registry app whose folder holds the session's working directory, otherwise the folder's name. The first save of a session reads at most the last 50 MB of its transcript.
+
+With `talk` in the config, `scripts/registry_talk.py` reads the notes of listed apps as `talk` nodes (outside the main scanner, so sessions on older plugin versions do not rewrite the whole graph), and the prompt hook offers them so a later or summarised session can find what the user said. Up to three notes are offered to the judge apart from the six skills, rules, and records, so they never push a skill out; only the judge picks notes, the local fallback never attaches them. They are local files and reach the judge (Jev) only as candidate text.
 
 ## Korean and English
 

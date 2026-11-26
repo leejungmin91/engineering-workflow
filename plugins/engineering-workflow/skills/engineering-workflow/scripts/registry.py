@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import registry_neo4j as graph
 import registry_scan
+import registry_talk
 import registry_usage
 
 try:
@@ -61,10 +62,12 @@ def held(wait):
                 msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
 
 
-def refresh(store, given, rebuild=False, wait=True):
-    scanned = registry_scan.scan(json.loads(config_path(given).read_text(encoding="utf-8")))
+def refresh(store, given, rebuild=False, wait=True, limit=None):
+    config = json.loads(config_path(given).read_text(encoding="utf-8"))
+    scanned = registry_scan.scan(config)
+    scanned["files"].update(registry_talk.files(config))
     with held(wait):
-        return graph.sync(store, scanned, rebuild)
+        return graph.sync(store, scanned, rebuild, limit)
 
 
 def join(*parts):

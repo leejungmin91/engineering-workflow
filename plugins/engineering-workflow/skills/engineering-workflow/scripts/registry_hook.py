@@ -18,9 +18,11 @@ except Exception:
 LIMIT = 3
 FETCH = 8
 OFFER = 6
+TALK_OFFER = 3
+SYNC_LIMIT = 25
 MIN_SCORE = 5.0
 SHARE = 0.7
-KINDS = ("skill", "record", "rule")
+KINDS = ("skill", "record", "rule", "talk")
 SCOPED = ("skill", "rule")
 MIN_PROMPT = 6
 MAX_PROMPT = 2000
@@ -44,11 +46,14 @@ def candidates(store, prompt, folder=None):
         found = [row for row in found if row["type"] not in SCOPED or row["id"] in allowed]
     named = [row for row in found if row["score"] is None]
     scored = sorted((row for row in found if row["score"] is not None), key=lambda row: -row["score"])
+    talks = [row for row in scored if row["type"] == "talk"][TALK_OFFER:]
+    scored = [row for row in scored if row not in talks]
     return named, scored
 
 
 def local_judge(named, scored):
     keep = list(named)
+    scored = [row for row in scored if row["type"] != "talk"]
     top = scored[0]["score"] if scored else 0
     for row in scored:
         if row["score"] >= MIN_SCORE and row["score"] >= SHARE * top:
@@ -88,7 +93,7 @@ def run_judge(command, payload, seconds):
 
 
 def outside_judge(command, prompt, named, scored, seconds):
-    offered = scored[:OFFER]
+    offered = [row for row in scored if row["type"] != "talk"][:OFFER] + [row for row in scored if row["type"] == "talk"]
     if not offered:
         return named[:LIMIT]
     payload = json.dumps({"prompt": prompt[:MAX_PROMPT], "limit": LIMIT, "candidates": [
@@ -144,7 +149,7 @@ def answer(event):
     store.deadline = started + BUDGET
     if os.environ.get("HARNESS_REGISTRY_HOOK_SYNC", "1") != "0":
         try:
-            registry.refresh(store, None, wait=False)
+            registry.refresh(store, None, wait=False, limit=SYNC_LIMIT)
         except (OSError, ValueError, KeyError, TypeError, registry.Busy):
             pass
     cwd = event.get("cwd")
