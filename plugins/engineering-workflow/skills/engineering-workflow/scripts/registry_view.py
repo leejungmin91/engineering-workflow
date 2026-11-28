@@ -18,6 +18,7 @@ import registry_neo4j as graph
 HIDDEN = ["commit", "asset", "source", "license"]
 PAGE_NAME = "registry.html"
 LOG_ROWS = 200
+SYNC_ROWS = 20
 WORDS = {
     "en": {
         "title": "Registry", "graph": "Graph", "shape": "Structure", "judge": "Judge", "models": "Models", "connect": "Connection",
@@ -26,11 +27,18 @@ WORDS = {
         "relHint": "click a relation to light it up and name its ends", "focus": "Neighbours only", "all": "Everything",
         "close": "Close", "more": "more", "cardsHint": "One card per node type; lines are the links between types with their counts. Cards can be dragged.",
         "prompts": "Logged prompts", "byJudge": "Outside / local", "latency": "Judge time p50 · p95",
-        "attach": "Attached something (outside · local)", "whatJudge": "What the judge does",
-        "s1": "Prompt", "s1d": "The hook receives the prompt. The log keeps no prompt text.",
-        "s2": "Candidates", "s2d": "The registry finds skill, record and rule candidates by word score.",
-        "s3": "Outside judge", "s3d": "The outside model picks the related ones (threshold {t}, limit {l}s). If it fails or is late, the local judge decides (score at least {ms}, at least {mr}% of the best).",
-        "s4": "Hint", "s4d": "Up to {n} picks are attached to the prompt. The judge does not choose models.",
+        "attach": "Attached something (outside · local)", "flow": "How one prompt is handled", "recentN": "numbers from the last {n} prompts",
+        "fPrompt": "Prompt", "fPromptD": "The hook receives the prompt. The log keeps no prompt text.",
+        "fGraph": "Graph DB (Neo4j)", "fGraphD": "Finds skill, record, rule and conversation-note candidates by word score in the graph built from files. Changed files are synced by a separate process first.",
+        "fJev": "Jev (outside judge)", "fJevD": "Reads the prompt and the candidates and keeps only the related ones (threshold {t}, limit {l}s).",
+        "fLocal": "When Jev fails or is late, the local judge decides (score at least {ms}, at least {mr}% of the best): {k} times",
+        "fHint": "Hint", "fHintD": "Up to {n} picks are attached to the prompt. Attached most often:",
+        "perPrompt": "Candidates per prompt", "findTime": "Search incl. sync wait p50 · p95", "lastSync": "Last sync", "syncN": "{n} files",
+        "noSync": "none logged yet", "calls": "Calls", "jtime": "Time p50 · p95", "attachRate": "Attached something",
+        "avgPick": "Picks, when it picks", "noPicks": "nothing attached yet", "avgN": "{n} on average",
+        "colGraph": "Graph DB found", "colJev": "Jev decided", "candN": "{n} candidates", "topIs": "top {id} · score {s}",
+        "pickedK": "picked {n}", "pickedNone": "picked none", "syncLog": "Graph syncs (only those that changed something)",
+        "sChanged": "Changed", "sRemoved": "Removed", "sHeld": "Held",
         "perDay": "Decisions per day", "timing": "Timing", "count": "Count", "rate": "Attached",
         "log": "Decisions", "every": "All", "outside": "Outside", "local": "Local", "failed": "Local after failure",
         "time": "Time", "who": "Judge", "secs": "Hook", "jsecs": "Judge", "decision": "Decision", "picked": "Attached",
@@ -58,11 +66,18 @@ WORDS = {
         "relHint": "관계를 누르면 그 관계만 밝혀지고 이름이 모두 보입니다", "focus": "이웃만 보기", "all": "전체 보기",
         "close": "닫기", "more": "개 더", "cardsHint": "점 종류마다 카드 하나. 선은 종류 사이의 연결과 개수입니다. 카드를 끌어 옮길 수 있습니다.",
         "prompts": "기록된 프롬프트", "byJudge": "외부 / 로컬 판단", "latency": "판단 시간 p50 · p95",
-        "attach": "후보를 붙인 비율 (외부 · 로컬)", "whatJudge": "판단 단계가 하는 일",
-        "s1": "프롬프트 입력", "s1d": "훅이 프롬프트를 받습니다. 기록에는 프롬프트 글을 남기지 않습니다.",
-        "s2": "후보 찾기", "s2d": "등록부에서 단어 점수로 스킬·기록·규칙 후보를 찾습니다.",
-        "s3": "외부 판단", "s3d": "외부 모델이 관련 있는 후보를 고릅니다(기준 {t}, 제한 {l}초). 답이 없거나 늦으면 로컬 판단(점수 {ms} 이상, 최고의 {mr}% 이상)이 대신합니다.",
-        "s4": "힌트 붙이기", "s4d": "골라진 것을 {n}개까지 프롬프트에 붙입니다. 판단 단계는 모델을 고르지 않습니다.",
+        "attach": "후보를 붙인 비율 (외부 · 로컬)", "flow": "질문 하나가 처리되는 흐름", "recentN": "숫자는 최근 {n}건 기준",
+        "fPrompt": "프롬프트", "fPromptD": "훅이 질문을 받습니다. 기록에는 질문 글을 남기지 않습니다.",
+        "fGraph": "그래프 DB (Neo4j)", "fGraphD": "파일로 만든 그래프에서 스킬·기록·규칙·대화 메모 후보를 단어 점수로 찾습니다. 바뀐 파일은 먼저 별도 프로세스가 동기화합니다.",
+        "fJev": "Jev (외부 판단)", "fJevD": "질문과 후보 목록을 보고 관련 있는 것만 고릅니다(기준 {t}, 제한 {l}초).",
+        "fLocal": "Jev가 실패하거나 늦으면 로컬 판단(점수 {ms} 이상, 최고의 {mr}% 이상)이 대신합니다: {k}건",
+        "fHint": "붙인 힌트", "fHintD": "골라진 것을 {n}개까지 질문에 붙입니다. 많이 붙은 것:",
+        "perPrompt": "질문당 후보", "findTime": "검색 + 동기화 대기 p50 · p95", "lastSync": "최근 동기화", "syncN": "파일 {n}개",
+        "noSync": "아직 기록 없음", "calls": "호출", "jtime": "시간 p50 · p95", "attachRate": "붙인 비율",
+        "avgPick": "고를 때 개수", "noPicks": "아직 붙인 것 없음", "avgN": "평균 {n}개",
+        "colGraph": "그래프 DB가 찾은 것", "colJev": "Jev 판단", "candN": "후보 {n}개", "topIs": "1위 {id} · 점수 {s}",
+        "pickedK": "{n}개 고름", "pickedNone": "고른 것 없음", "syncLog": "그래프 동기화 기록 (바뀐 것만)",
+        "sChanged": "바뀐 파일", "sRemoved": "지운 파일", "sHeld": "보류",
         "perDay": "날짜별 판단", "timing": "시간", "count": "건수", "rate": "붙인 비율",
         "log": "판단 기록", "every": "전체", "outside": "외부", "local": "로컬", "failed": "실패 후 로컬",
         "time": "시각", "who": "판단", "secs": "훅", "jsecs": "판단", "decision": "결정", "picked": "붙인 것",
@@ -128,11 +143,34 @@ def decisions(folder):
         rows.append({"at": str(item.get("at", ""))[:19], "judge": str(item.get("judge", "local"))[:40],
                      "seconds": number(item.get("seconds")), "judge_seconds": number(item.get("judge_seconds")),
                      "offered": item.get("offered") if isinstance(item.get("offered"), int) else 0,
+                     "top": str(item["top"])[:200] if isinstance(item.get("top"), str) else None,
+                     "top_score": number(item.get("top_score")),
                      "chosen": [str(entry)[:200] for entry in chosen[:6]]})
     days = collections.defaultdict(lambda: {"outside": 0, "local": 0})
     for row in rows:
         days[row["at"][:10]]["outside" if row["judge"] == "outside" else "local"] += 1
-    return {"rows": rows[::-1][:LOG_ROWS], "days": sorted(days.items())[-30:], "total": len(rows)}
+    picks = collections.Counter(entry for row in rows[-LOG_ROWS:] for entry in row["chosen"])
+    return {"rows": rows[::-1][:LOG_ROWS], "days": sorted(days.items())[-30:], "total": len(rows),
+            "picks": picks.most_common(8), "syncs": syncs(folder)}
+
+
+def syncs(folder):
+    path = Path(folder).expanduser() / "sync.jsonl" if folder else None
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()[-SYNC_ROWS:] if path and path.is_file() else []
+    except (OSError, UnicodeError):
+        lines = []
+    found = []
+    for line in lines:
+        try:
+            item = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(item, dict):
+            found.append({"at": str(item.get("at", ""))[:19], "seconds": number(item.get("seconds")),
+                          **{key: item.get(key) if isinstance(item.get(key), int) else 0
+                             for key in ("changed", "removed", "held", "skipped")}})
+    return found[::-1]
 
 
 def number(value):
@@ -258,7 +296,17 @@ td.n,th.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
 .filters{display:flex;gap:6px;margin-bottom:10px}.quote{white-space:pre-wrap;color:var(--ink2);font-size:13px;margin:0}
 .mono{font:12px ui-monospace,Menlo,monospace;color:var(--ink2)}pre{background:#0a0e12;border:1px solid var(--ring);border-radius:8px;padding:10px;overflow:auto;font:12px ui-monospace,Menlo,monospace;color:var(--ink)}
 .ok{color:#0ca30c}.bad{color:#f08a8a}.foot{color:var(--muted);font-size:12px;text-align:center;margin-top:18px}
-@media (max-width:760px){.steps,.two,.grid{grid-template-columns:1fr}.side{width:auto;left:12px;top:auto;max-height:45%}input[type=search]{width:100%}}
+.flow{display:grid;grid-template-columns:minmax(0,.7fr) 18px minmax(0,1.2fr) 18px minmax(0,1.2fr) 18px minmax(0,1.3fr);gap:6px;align-items:start}
+.fstep{background:#151c23;border:1px solid var(--ring);border-radius:12px;padding:12px 14px;min-width:0}.fstep.s-db{border-color:#3d6b8a}.fstep.s-jev{border-color:#2f7d6d}
+.fstep .sh{font-size:13px;font-weight:650;color:var(--ink);margin-bottom:6px}.fstep p{font-size:12px;color:var(--ink2);margin:0 0 10px;line-height:1.5}
+.fstep dl{display:grid;grid-template-columns:auto auto;gap:5px 10px;margin:0;font-size:12px}.fstep dt{color:var(--muted)}.fstep dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
+.fstep ol{list-style:none;margin:0;padding:0;font-size:12px}.fstep ol li{display:flex;gap:6px;align-items:baseline;margin-bottom:3px;min-width:0}.cnt{flex:none;width:34px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}.fstep ol .chipid{flex:1;min-width:0;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.big{font-size:26px;font-weight:650}
+.arrow{display:grid;place-items:center;color:var(--muted);font-size:18px}
+.fallback{margin-top:10px;border:1px dashed var(--ring);border-radius:8px;padding:6px 8px;font-size:11px;color:var(--muted);line-height:1.45}
+table.log{table-layout:fixed;min-width:720px}table.log td{overflow-wrap:anywhere;word-break:normal}
+.chipid{display:inline-block;max-width:100%;background:#151c23;border:1px solid var(--ring);border-radius:6px;padding:1px 6px;margin:0 4px 4px 0;font-size:11px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}.chipid b{color:var(--muted);font-weight:500}
+.sub{font-size:11px;color:var(--muted)}div.sub{margin-top:3px;overflow-wrap:anywhere}
+@media (max-width:760px){.flow{grid-template-columns:1fr}.arrow{transform:rotate(90deg)}.steps,.two,.grid{grid-template-columns:1fr}.side{width:auto;left:12px;top:auto;max-height:45%}input[type=search]{width:100%}}
 </style></head><body>
 <nav role="tablist"></nav><main>
 <section class="tab on" id="graph"><div class="bar"><input type="search" id="q"><span id="types"></span><span class="hint" id="hint"></span></div>
@@ -386,23 +434,51 @@ const pct = (list, key, q) => { const v = list.map(r => r[key]).filter(x => type
 const rate = list => list.length ? Math.round(100 * list.filter(r => r.chosen.length).length / list.length) + '%' : '-';
 const peak = Math.max(1, ...J.days.map(d => d[1].outside + d[1].local));
 let filter = 'all';
+const secsOf = (values, q) => { const v = values.filter(x => typeof x === 'number').sort((a, b) => a - b); return v.length ? v[Math.min(v.length - 1, Math.floor(q * v.length))].toFixed(2) + 's' : '-'; };
+const graphSecs = r => typeof r.seconds === 'number' ? Math.max(0, r.seconds - (r.judge_seconds || 0)) : null;
+const short = id => { const tail = String(id).split(':').slice(1).join(':') || String(id); const last = tail.split('/').pop(); return (last.length > 46 ? last.slice(0, 45) + '…' : last); };
+const kindOf = id => String(id).split(':')[0];
+const kindName = id => (D.types && D.types[kindOf(id)]) || kindOf(id);
+const chip = id => `<span class="chipid" title="${esc(id)}"><b>${esc(kindName(id))}</b> ${esc(short(id))}</span>`;
 function judgeTab() {
   const rows = J.rows.filter(r => filter === 'all' || (filter === 'outside') === isOut(r)).slice(0, 60);
+  const S = D.server || {}, sync = (J.syncs || [])[0], picking = outRows.filter(r => r.chosen.length);
+  const offered = J.rows.map(r => r.offered).filter(n => typeof n === 'number');
+  const meanOffered = offered.length ? (offered.reduce((a, b) => a + b, 0) / offered.length).toFixed(1) : '-';
+  const meanPicked = picking.length ? (picking.reduce((a, r) => a + r.chosen.length, 0) / picking.length).toFixed(1) : '-';
   document.getElementById('judge').innerHTML = `
 <div class="grid"><div class="tile"><div class="k">${esc(W.prompts)}</div><div class="v">${J.total}</div></div>
 <div class="tile"><div class="k">${esc(W.byJudge)}</div><div class="v">${outRows.length} / ${localRows.length}</div></div>
 <div class="tile"><div class="k">${esc(W.latency)}</div><div class="v" style="font-size:20px">${pct(outRows, 'judge_seconds', .5)} · ${pct(outRows, 'judge_seconds', .95)}</div></div>
 <div class="tile"><div class="k">${esc(W.attach)}</div><div class="v" style="font-size:20px">${rate(outRows)} · ${rate(localRows)}</div></div></div>
-<div class="box"><h2>${esc(W.whatJudge)}</h2><ol class="steps">${[1, 2, 3, 4].map(i => `<li><b>${esc(W['s' + i])}</b><p>${fill(W['s' + i + 'd'], D.limits)}</p></li>`).join('')}</ol></div>
+<div class="box"><h2>${esc(W.flow)} <span class="sub">· ${esc(fill(W.recentN, {n: J.rows.length}))}</span></h2><div class="flow">
+<div class="fstep"><div class="sh">1 · ${esc(W.fPrompt)}</div><p>${esc(W.fPromptD)}</p><div class="big">${J.total}</div></div>
+<div class="arrow" aria-hidden="true">→</div>
+<div class="fstep s-db"><div class="sh">2 · ${esc(W.fGraph)}</div><p>${esc(W.fGraphD)}</p><dl>
+<dt>${esc(W.nodesLinks)}</dt><dd>${S.up ? `${S.nodes} · ${S.links} · ${S.files}` : esc(W.down)}</dd>
+<dt>${esc(W.perPrompt)}</dt><dd>${esc(fill(W.avgN, {n: meanOffered}))}</dd>
+<dt>${esc(W.findTime)}</dt><dd>${secsOf(J.rows.map(graphSecs), .5)} · ${secsOf(J.rows.map(graphSecs), .95)}</dd>
+<dt>${esc(W.lastSync)}</dt><dd>${sync ? `${esc(sync.at.slice(5, 16).replace('T', ' '))} · ${fill(W.syncN, {n: sync.changed + sync.removed})}` : esc(W.noSync)}</dd></dl></div>
+<div class="arrow" aria-hidden="true">→</div>
+<div class="fstep s-jev"><div class="sh">3 · ${esc(W.fJev)}</div><p>${fill(W.fJevD, D.limits)}</p><dl>
+<dt>${esc(W.calls)}</dt><dd>${outRows.length}</dd>
+<dt>${esc(W.jtime)}</dt><dd>${pct(outRows, 'judge_seconds', .5)} · ${pct(outRows, 'judge_seconds', .95)}</dd>
+<dt>${esc(W.attachRate)}</dt><dd>${rate(outRows)}</dd>
+<dt>${esc(W.avgPick)}</dt><dd>${esc(fill(W.avgN, {n: meanPicked}))}</dd></dl>
+<div class="fallback">${fill(W.fLocal, {...D.limits, k: J.rows.filter(failed).length})}</div></div>
+<div class="arrow" aria-hidden="true">→</div>
+<div class="fstep s-hint"><div class="sh">4 · ${esc(W.fHint)}</div><p>${fill(W.fHintD, D.limits)}</p>${(J.picks || []).length ? `<ol>${J.picks.slice(0, 5).map(([id, c]) => `<li><span class="cnt">×${c}</span>${chip(id)}</li>`).join('')}</ol>` : `<p class="quote">${esc(W.noPicks)}</p>`}</div>
+</div></div>
 <div class="two"><div class="box"><h2>${esc(W.perDay)}</h2><div class="days">${J.days.map(([d, c]) => `<div title="${esc(d)}: ${c.outside} / ${c.local}"><span style="height:${c.outside / peak * 110}px;background:#7fd1c1"></span><span style="height:${c.local / peak * 110}px;background:#3a4650"></span></div>`).join('')}</div>
 <div class="legend"><span><i style="background:#7fd1c1"></i>${esc(W.outside)}</span><span><i style="background:#3a4650"></i>${esc(W.local)}</span></div></div>
-<div class="box"><h2>${esc(W.timing)}</h2><table><thead><tr><th>${esc(W.who)}</th><th class="n">${esc(W.count)}</th><th class="n">${esc(W.secs)} p50</th><th class="n">${esc(W.secs)} p95</th><th class="n">${esc(W.jsecs)} p50</th><th class="n">${esc(W.jsecs)} p95</th><th class="n">${esc(W.rate)}</th></tr></thead><tbody>
-${[[W.outside, outRows, 'out'], [W.local, localRows, '']].map(([name, list, cls]) => `<tr><td><span class="pill ${cls}">${esc(name)}</span></td><td class="n">${list.length}</td><td class="n">${pct(list, 'seconds', .5)}</td><td class="n">${pct(list, 'seconds', .95)}</td><td class="n">${pct(list, 'judge_seconds', .5)}</td><td class="n">${pct(list, 'judge_seconds', .95)}</td><td class="n">${rate(list)}</td></tr>`).join('')}</tbody></table></div></div>
+<div class="box"><h2>${esc(W.syncLog)}</h2>${(J.syncs || []).length ? `<table><thead><tr><th>${esc(W.time)}</th><th class="n">${esc(W.sChanged)}</th><th class="n">${esc(W.sRemoved)}</th><th class="n">${esc(W.sHeld)}</th><th class="n">${esc(W.timing)}</th></tr></thead><tbody>${J.syncs.slice(0, 8).map(x => `<tr><td class="mono">${esc(x.at.replace('T', ' '))}</td><td class="n">${x.changed}</td><td class="n">${x.removed}</td><td class="n">${x.held}</td><td class="n">${x.seconds ?? '-'}s</td></tr>`).join('')}</tbody></table>` : `<p class="quote">${esc(W.noSync)}</p>`}</div></div>
 <div class="box"><h2>${esc(W.log)}</h2><div class="filters">${[['all', W.every], ['outside', W.outside], ['local', W.local]].map(([k, v]) => `<button class="chip" data-j="${k}" aria-pressed="${filter === k}">${esc(v)}</button>`).join('')}</div>
-<div class="scroll"><table><thead><tr><th>${esc(W.time)}</th><th>${esc(W.who)}</th><th class="n">${esc(W.secs)}</th><th class="n">${esc(W.jsecs)}</th><th class="decision">${esc(W.decision)}</th><th class="picked">${esc(W.picked)}</th></tr></thead><tbody>
-${rows.map(r => `<tr><td class="mono">${esc(r.at.replace('T', ' '))}</td><td><span class="pill ${isOut(r) ? 'out' : ''}">${esc(isOut(r) ? W.outside : failed(r) ? W.failed : W.local)}</span></td>
-<td class="n">${r.seconds ?? '-'}s</td><td class="n">${r.judge_seconds ?? '-'}${r.judge_seconds == null ? '' : 's'}</td>
-<td class="decision">${r.chosen.length ? fill(W.pickedN, {n: r.chosen.length, o: r.offered}) : r.offered ? fill(W.none, {o: r.offered}) : esc(W.empty)}</td><td class="mono picked">${r.chosen.map(esc).join('<br>')}</td></tr>`).join('')}</tbody></table></div></div>`;
+<div class="scroll"><table class="log"><colgroup><col style="width:150px"><col style="width:34%"><col style="width:22%"><col></colgroup>
+<thead><tr><th>${esc(W.time)}</th><th>${esc(W.colGraph)}</th><th>${esc(W.colJev)}</th><th>${esc(W.picked)}</th></tr></thead><tbody>
+${rows.map(r => `<tr><td class="mono">${esc(r.at.replace('T', ' '))}</td>
+<td>${r.offered ? esc(fill(W.candN, {n: r.offered})) : esc(W.empty)} <span class="sub">${graphSecs(r) == null ? '' : graphSecs(r).toFixed(2) + 's'}</span>${r.top ? `<div class="sub">${fill(W.topIs, {id: kindName(r.top) + ' ' + short(r.top), s: r.top_score ?? '-'})}</div>` : ''}</td>
+<td><span class="pill ${isOut(r) ? 'out' : ''}">${esc(isOut(r) ? W.outside : failed(r) ? W.failed : W.local)}</span> ${esc(r.chosen.length ? fill(W.pickedK, {n: r.chosen.length}) : W.pickedNone)} <span class="sub">${r.judge_seconds == null ? '' : r.judge_seconds + 's'}</span></td>
+<td>${r.chosen.map(chip).join('')}</td></tr>`).join('')}</tbody></table></div></div>`;
   document.querySelectorAll('[data-j]').forEach(b => b.onclick = () => { filter = b.dataset.j; judgeTab(); }); }
 judgeTab();
 
